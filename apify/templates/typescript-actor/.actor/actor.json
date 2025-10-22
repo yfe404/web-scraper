@@ -1,0 +1,35 @@
+{
+    "actorSpecification": 1,
+    "name": "my-actor",
+    "title": "My Actor",
+    "description": "Actor description here",
+    "version": "1.0.0",
+    "meta": {
+        "templateId": "playwright-ts"
+    },
+    "input": "./input_schema.json",
+    "dockerfile": "./Dockerfile",
+    "readme": "./README.md",
+    "defaultRunOptions": {
+        "build": "latest",
+        "timeoutSecs": 3600,
+        "memoryMbytes": 2048
+    },
+    "storages": {
+        "dataset": {
+            "actorSpecification": 1,
+            "title": "Scraped data",
+            "views": {
+                "overview": {
+                    "title": "Overview",
+                    "transformation": {
+                        "fields": ["title", "price", "url", "scrapedAt"]
+                    },
+                    "display": {
+                        "component": "table"
+                    }
+                }
+            }
+        }
+    }
+}

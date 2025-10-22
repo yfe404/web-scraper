@@ -1,0 +1,41 @@
+{
+    "title": "Hybrid API Scraper Input",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "sitemapUrl": {
+            "title": "Sitemap URL",
+            "type": "string",
+            "description": "URL to sitemap.xml file",
+            "editor": "textfield",
+            "pattern": "https?://.+",
+            "example": "https://example.com/sitemap.xml"
+        },
+        "apiBaseUrl": {
+            "title": "API Base URL",
+            "type": "string",
+            "description": "API endpoint base URL (without ID)",
+            "editor": "textfield",
+            "pattern": "https?://.+",
+            "example": "https://api.example.com/products"
+        },
+        "idPattern": {
+            "title": "ID Pattern (regex)",
+            "type": "string",
+            "description": "Regex to extract ID from URL (use capture group)",
+            "editor": "textfield",
+            "default": "/products/([^/]+)",
+            "example": "/products/([^/]+)"
+        },
+        "maxItems": {
+            "title": "Maximum items",
+            "type": "integer",
+            "description": "Maximum number of products to fetch",
+            "editor": "number",
+            "default": 1000,
+            "minimum": 1,
+            "maximum": 100000
+        }
+    },
+    "required": ["sitemapUrl", "apiBaseUrl"]
+}

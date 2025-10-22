@@ -1,0 +1,32 @@
+{
+    "title": "Basic Scraper Input",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "sitemapUrl": {
+            "title": "Sitemap URL",
+            "type": "string",
+            "description": "URL to sitemap.xml file",
+            "editor": "textfield",
+            "pattern": "https?://.+",
+            "example": "https://example.com/sitemap.xml"
+        },
+        "urlPattern": {
+            "title": "URL Pattern (regex)",
+            "type": "string",
+            "description": "Optional regex to filter URLs",
+            "editor": "textfield",
+            "example": "/products/.*"
+        },
+        "maxItems": {
+            "title": "Maximum items",
+            "type": "integer",
+            "description": "Maximum number of URLs to scrape",
+            "editor": "number",
+            "default": 100,
+            "minimum": 1,
+            "maximum": 10000
+        }
+    },
+    "required": ["sitemapUrl"]
+}

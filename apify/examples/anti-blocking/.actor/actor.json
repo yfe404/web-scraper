@@ -1,0 +1,39 @@
+{
+    "actorSpecification": 1,
+    "name": "anti-blocking-scraper",
+    "title": "Anti-Blocking Scraper",
+    "description": "Scraper with fingerprinting and proxy support for blocked sites",
+    "version": "1.0.0",
+    "meta": {
+        "templateId": "playwright-ts"
+    },
+    "input": "./input_schema.json",
+    "dockerfile": "./Dockerfile",
+    "readme": "./README.md",
+    "defaultRunOptions": {
+        "build": "latest",
+        "timeoutSecs": 3600,
+        "memoryMbytes": 4096
+    },
+    "environmentVariables": {
+        "USE_FINGERPRINTING": "true",
+        "PROXY_GROUP": "RESIDENTIAL"
+    },
+    "storages": {
+        "dataset": {
+            "actorSpecification": 1,
+            "title": "Scraped data",
+            "views": {
+                "overview": {
+                    "title": "Overview",
+                    "transformation": {
+                        "fields": ["title", "url", "sessionId", "scrapedAt"]
+                    },
+                    "display": {
+                        "component": "table"
+                    }
+                }
+            }
+        }
+    }
+}

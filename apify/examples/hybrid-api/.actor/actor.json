@@ -1,0 +1,40 @@
+{
+    "actorSpecification": 1,
+    "name": "hybrid-api-scraper",
+    "title": "Hybrid Sitemap + API Scraper",
+    "description": "Optimal pattern: sitemap for URLs, API for data",
+    "version": "1.0.0",
+    "meta": {
+        "templateId": "playwright-ts"
+    },
+    "input": "./input_schema.json",
+    "dockerfile": "./Dockerfile",
+    "readme": "./README.md",
+    "defaultRunOptions": {
+        "build": "latest",
+        "timeoutSecs": 1800,
+        "memoryMbytes": 1024
+    },
+    "storages": {
+        "dataset": {
+            "actorSpecification": 1,
+            "title": "Product data",
+            "views": {
+                "overview": {
+                    "title": "Products",
+                    "transformation": {
+                        "fields": ["name", "price", "inStock", "url"]
+                    },
+                    "display": {
+                        "component": "table",
+                        "properties": {
+                            "price": {
+                                "label": "Price ($)"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,32 @@
+{
+    "title": "Actor Input",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "startUrls": {
+            "title": "Start URLs",
+            "type": "array",
+            "description": "List of URLs to scrape",
+            "editor": "requestListSources",
+            "placeholderValue": [{"url": "https://example.com"}],
+            "minItems": 1
+        },
+        "maxItems": {
+            "title": "Maximum items",
+            "type": "integer",
+            "description": "Maximum number of items to scrape",
+            "editor": "number",
+            "default": 100,
+            "minimum": 1,
+            "maximum": 10000
+        },
+        "proxyConfiguration": {
+            "title": "Proxy configuration",
+            "type": "object",
+            "description": "Proxy settings for the Actor",
+            "editor": "proxy",
+            "default": {"useApifyProxy": true}
+        }
+    },
+    "required": ["startUrls"]
+}

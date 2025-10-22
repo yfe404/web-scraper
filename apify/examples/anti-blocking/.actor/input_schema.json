@@ -1,0 +1,40 @@
+{
+    "title": "Anti-Blocking Scraper Input",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "startUrls": {
+            "title": "Start URLs",
+            "type": "array",
+            "description": "URLs to scrape",
+            "editor": "requestListSources",
+            "minItems": 1
+        },
+        "maxItems": {
+            "title": "Maximum items",
+            "type": "integer",
+            "description": "Maximum number of URLs to scrape",
+            "editor": "number",
+            "default": 100,
+            "minimum": 1,
+            "maximum": 10000
+        },
+        "useFingerprinting": {
+            "title": "Use fingerprinting",
+            "type": "boolean",
+            "description": "Enable browser fingerprinting for anti-blocking",
+            "editor": "checkbox",
+            "default": true
+        },
+        "proxyGroup": {
+            "title": "Proxy group",
+            "type": "string",
+            "description": "Apify proxy group to use",
+            "editor": "select",
+            "enum": ["RESIDENTIAL", "SHADER"],
+            "enumTitles": ["Residential (Better)", "Datacenter (Faster)"],
+            "default": "RESIDENTIAL"
+        }
+    },
+    "required": ["startUrls"]
+}
