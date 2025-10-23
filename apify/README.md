@@ -39,6 +39,7 @@ apify push
 4. **input-schemas.md** - Input validation patterns (6 complete examples)
 5. **configuration.md** - actor.json configuration patterns
 6. **deployment.md** - Testing and deployment workflows
+7. **agents-md-guide.md** - How to use AGENTS.md in templates (reference guide)
 
 ### Templates
 - **templates/typescript-actor/** - Complete TypeScript actor template
@@ -85,10 +86,25 @@ See `cli-workflow.md` for details.
 
 1. **cli-workflow.md** - Start here (apify create)
 2. **typescript-first.md** - Why TypeScript
-3. **initialization.md** - Complete setup
-4. **input-schemas.md** - Define inputs
-5. **configuration.md** - Configure actor
-6. **deployment.md** - Deploy to platform
+3. **agents-md-guide.md** - Understanding AGENTS.md in templates
+4. **initialization.md** - Complete setup
+5. **input-schemas.md** - Define inputs
+6. **configuration.md** - Configure actor
+7. **deployment.md** - Deploy to platform
+
+## Scope and External Resources
+
+### This Skill's Scope
+- **When and why**: Workflow, strategy selection, template decision tree
+- **Project structure**: CLI usage, TypeScript setup, deployment patterns
+- **Integration**: How to use scraping logic from Phase 1-4 in Actors
+
+### AGENTS.md Scope (in Templates)
+- **How**: Implementation details, SDK patterns, best practices
+- **Schemas**: Detailed input/output/dataset/key-value store specifications
+- **Do/Don't**: Apify-specific anti-patterns and recommendations
+
+When you run `apify create`, the template includes `AGENTS.md` with official Apify guidance. Read `agents-md-guide.md` to understand how AGENTS.md complements this skill.
 
 ---
 

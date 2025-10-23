@@ -126,7 +126,13 @@ See `../apify/cli-workflow.md` for complete guide.
 4. Set up dataset output
 5. Add error handling
 
-See `../apify/templates/` for complete templates.
+**Reference AGENTS.md**: After running `apify create`, the template includes `AGENTS.md` with detailed guidance on:
+- Input/output schema specifications
+- Dataset and key-value store patterns
+- Do/Don't best practices for Actor development
+- SDK usage patterns
+
+See `../apify/templates/` for complete templates and `../apify/agents-md-guide.md` for how AGENTS.md complements this skill.
 
 ## Step 5: Test & Deploy
 

@@ -126,12 +126,22 @@ my-scraper/
 ├── .dockerignore
 ├── .gitignore
 ├── .prettierrc
+├── AGENTS.md                      ← AI agent guidance (Apify-maintained)
 ├── Dockerfile                     ← Production build
 ├── eslint.config.js               ← Code quality
 ├── package.json                   ← Dependencies & scripts
 ├── tsconfig.json                  ← TypeScript config
 └── README.md                      ← Documentation
 ```
+
+**Important**: The template includes `AGENTS.md`, official Apify documentation for AI agents working with Actors. This file provides:
+- Do/Don't patterns for Actor development
+- Input/output schema detailed specifications
+- Dataset and key-value store schema patterns
+- Safety and permission guidelines
+- Apify SDK best practices
+
+See `agents-md-guide.md` in this directory for how AGENTS.md complements this skill.
 
 ### Step 7: Install Dependencies
 
