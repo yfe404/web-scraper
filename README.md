@@ -5,6 +5,7 @@ Intelligent web scraping with automatic strategy selection and TypeScript-first 
 ## Overview
 
 This skill provides:
+- **Interactive reconnaissance** - Hands-on site exploration using Playwright MCP & Chrome DevTools
 - **Proactive strategy discovery** - Automatically checks for sitemaps and APIs
 - **Intelligent recommendations** - Suggests optimal approach (sitemap/API/Playwright/hybrid)
 - **Iterative implementation** - Starts simple, adds complexity only if needed
@@ -22,11 +23,15 @@ Add this skill to Claude Code by placing this directory in the skills folder.
 User: "Scrape https://example.com"
 
 Claude will automatically:
-1. Check for sitemaps (/sitemap.xml, robots.txt)
-2. Look for APIs (prompts to check DevTools)
-3. Recommend optimal approach
-4. Implement iteratively (test small batch first)
-5. Scale to full dataset
+1. Open site in browser (Playwright MCP) - observe loading behavior
+2. Monitor network traffic (DevTools) - discover API endpoints
+3. Test interactions - pagination, filters, dynamic content
+4. Assess protections - Cloudflare, rate limits, fingerprinting
+5. Check for sitemaps (/sitemap.xml, robots.txt)
+6. Generate intelligence report with optimal strategy
+7. Implement recommended approach iteratively
+8. Test with small batch (5-10 items)
+9. Scale to full dataset
 ```
 
 ### Scenario 2: Create Apify Actor
@@ -49,8 +54,9 @@ Claude will:
 web-scraping/
 ├── SKILL.md                    # Main entry point (proactive workflow)
 ├── workflows/                  # Implementation patterns
-│   ├── implementation.md       # Phase 3 iterative implementation
-│   └── productionization.md    # Phase 4 Actor creation
+│   ├── reconnaissance.md       # Phase 1 interactive reconnaissance (CRITICAL)
+│   ├── implementation.md       # Phase 4 iterative implementation
+│   └── productionization.md    # Phase 5 Actor creation
 ├── strategies/                 # Deep-dive guides
 │   ├── sitemap-discovery.md   # 60x faster URL discovery
 │   ├── api-discovery.md       # 10-100x faster than scraping
@@ -157,14 +163,24 @@ This skill follows Anthropic's official best practices for skill development:
 
 ## Key Features
 
-### 1. Proactive Discovery
+### 1. Interactive Reconnaissance (Phase 1)
 
-Automatically checks for:
+Before any implementation:
+- **Playwright MCP**: Open site in real browser, observe loading behavior, test interactions
+- **Chrome DevTools MCP**: Monitor network traffic, discover hidden APIs, analyze request patterns
+- **Protection Analysis**: Detect Cloudflare, CAPTCHA, rate limiting, fingerprinting
+- **Intelligence Report**: Generate structured findings with optimal strategy recommendation
+
+**Why this matters**: Discovers hidden APIs (10-100x faster than HTML scraping), identifies blockers before coding, provides intelligence for informed strategy selection.
+
+### 2. Proactive Discovery (Phase 2)
+
+Automatically validates reconnaissance findings:
 - Sitemaps (`/sitemap.xml`, `robots.txt`)
-- APIs (DevTools Network tab analysis)
+- API endpoints (confirmed from DevTools analysis)
 - Site structure (JavaScript-heavy? Authentication?)
 
-### 2. Strategic Recommendations
+### 3. Strategic Recommendations (Phase 3)
 
 Presents 2-3 options with:
 - Time estimates
@@ -172,14 +188,14 @@ Presents 2-3 options with:
 - Pros/cons
 - Clear reasoning
 
-### 3. Iterative Implementation
+### 4. Iterative Implementation (Phase 4)
 
 - Start with simplest approach
 - Test small batch (5-10 items)
 - Scale or fallback based on results
 - Add robustness last
 
-### 4. TypeScript-First Apify
+### 5. TypeScript-First Apify (Phase 5)
 
 For production actors:
 - **Strongly recommend** TypeScript
@@ -193,13 +209,16 @@ For production actors:
 
 ```
 1. User: "Scrape example.com"
-2. Claude checks sitemap (found!)
-3. Claude asks to check API (found!)
-4. Claude recommends: Sitemap + API (fastest)
-5. Implements hybrid approach
-6. Tests with 10 items
-7. Scales to full dataset
-8. Result: 1000 products in 5 minutes
+2. Claude opens site with Playwright MCP (Phase 1 reconnaissance)
+3. Claude monitors DevTools, finds API endpoint GET /api/products
+4. Claude tests pagination, detects Cloudflare protection
+5. Claude checks sitemap (validates Phase 1 findings - 1,234 URLs)
+6. Claude generates intelligence report
+7. Claude recommends: Hybrid (Sitemap + API + Proxies)
+8. Implements with discovered API endpoints
+9. Tests with 10 items
+10. Scales to full dataset
+11. Result: 1000 products in 5 minutes, no blocks
 ```
 
 ### Workflow 2: Make it an Actor
@@ -228,20 +247,28 @@ For production actors:
 
 ## Best Practices Summary
 
-### Discovery Phase
-✅ Always check for sitemaps first
-✅ Always look for APIs
-✅ Analyze site structure
+### Reconnaissance Phase (Phase 1)
+✅ Always start with Playwright MCP + DevTools exploration
+✅ Discover APIs before attempting HTML scraping
+✅ Test site interactions to understand behavior
+✅ Assess protections early (Cloudflare, CAPTCHA, rate limits)
+✅ Generate intelligence report with findings
 
-### Implementation Phase
+### Discovery Phase (Phase 2)
+✅ Validate reconnaissance with automated sitemap checks
+✅ Confirm API endpoints discovered in Phase 1
+✅ Analyze site structure based on observations
+
+### Implementation Phase (Phase 4)
 ✅ Start simple (sitemap → API → Playwright)
 ✅ Test small batch first
 ✅ Handle errors gracefully
 ✅ Respect rate limits
 
-### Production Phase
+### Production Phase (Phase 5)
 ✅ Use TypeScript for Apify Actors
 ✅ Always use `apify create` command
+✅ Choose template based on Phase 1 findings (Cheerio vs Playwright)
 ✅ Test locally with `apify run`
 ✅ Deploy with `apify push`
 
@@ -270,17 +297,21 @@ For production actors:
 
 ## Philosophy
 
-**Sitemaps first, APIs second, scraping last!**
+**Intelligence first, implementation second!**
 
 This skill prioritizes:
-1. **Speed** - Fastest approach that works
-2. **Reliability** - Structured data > HTML parsing
-3. **Maintainability** - TypeScript, proper tooling
-4. **Best practices** - Industry standards
+1. **Reconnaissance** - Understand before coding (APIs > Sitemaps > Scraping)
+2. **Speed** - Fastest approach that works (API 10-100x faster than HTML)
+3. **Reliability** - Structured data > HTML parsing
+4. **Maintainability** - TypeScript, proper tooling
+5. **Best practices** - Industry standards
 
 ## Version
 
-**3.0.0** - Complete rewrite with:
+**4.0.0** - Intelligence-driven scraping:
+- **NEW**: Interactive reconnaissance phase (Playwright MCP + Chrome DevTools)
+- **NEW**: API discovery before HTML scraping
+- **NEW**: Protection analysis and countermeasures
 - Progressive disclosure architecture
 - Proactive strategy discovery
 - TypeScript-first Apify guidance

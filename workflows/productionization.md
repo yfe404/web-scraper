@@ -31,7 +31,7 @@ Based on Phase 1 site analysis, choose the optimal template:
 
 ### Decision Tree
 
-**1. Analyze site characteristics** (from Phase 1 discovery):
+**1. Analyze site characteristics** (from Phase 1 reconnaissance):
    - Static HTML / Server-Side Rendering → Use Cheerio
    - JavaScript-rendered content → Use Playwright
    - Anti-bot challenges → Consider Camoufox variant

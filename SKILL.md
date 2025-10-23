@@ -19,11 +19,55 @@ Activate automatically when user requests:
 
 ## Proactive Workflow
 
-This skill follows a systematic 4-phase approach to web scraping, always starting with discovery and ending with production-ready code.
+This skill follows a systematic 5-phase approach to web scraping, always starting with interactive reconnaissance and ending with production-ready code.
 
-### Phase 1: AUTOMATIC DISCOVERY (Always Execute First)
+### Phase 1: INTERACTIVE RECONNAISSANCE (Critical First Step)
 
-When user says "scrape X", **immediately and automatically** execute:
+When user says "scrape X", **immediately start with hands-on reconnaissance** using MCP tools:
+
+**DO NOT jump to automated checks or implementation** - reconnaissance prevents wasted effort and discovers hidden APIs.
+
+#### Use Playwright MCP & Chrome DevTools MCP:
+
+**1. Open site in real browser** (Playwright MCP)
+   - Navigate like a real user
+   - Observe page loading behavior (SSR? SPA? Loading states?)
+   - Take screenshots for reference
+   - Test basic interactions
+
+**2. Monitor network traffic** (Chrome DevTools via Playwright)
+   - Watch XHR/Fetch requests in real-time
+   - **Find API endpoints** returning JSON (10-100x faster than HTML scraping!)
+   - Analyze request/response patterns
+   - Document headers, cookies, authentication tokens
+   - Extract pagination parameters
+
+**3. Test site interactions**
+   - **Pagination**: URL-based? API? Infinite scroll?
+   - **Filtering and search**: How do they work?
+   - **Dynamic content loading**: Triggers and patterns
+   - **Authentication flows**: Required? Optional?
+
+**4. Assess protection mechanisms**
+   - Cloudflare/bot detection
+   - CAPTCHA requirements
+   - Rate limiting behavior (test with multiple requests)
+   - Fingerprinting scripts
+
+**5. Generate Intelligence Report**
+   - Site architecture (framework, rendering method)
+   - **Discovered APIs/endpoints** with full specs
+   - Protection mechanisms and required countermeasures
+   - **Optimal extraction strategy** (API > Sitemap > HTML)
+   - Time/complexity estimates
+
+**See**: `workflows/reconnaissance.md` for complete reconnaissance guide with MCP examples
+
+**Why this matters**: Reconnaissance discovers hidden APIs (eliminating need for HTML scraping), identifies blockers before coding, and provides intelligence for optimal strategy selection. **Never skip this step.**
+
+### Phase 2: AUTOMATIC DISCOVERY (Validate Reconnaissance)
+
+After Phase 1 reconnaissance, **validate findings with automated checks**:
 
 #### 1. Check for Sitemaps
 
@@ -76,9 +120,9 @@ Check for APIs? [Y/n]
 - Page count estimate (from sitemap or site exploration)
 - Rate limiting indicators (robots.txt directives)
 
-### Phase 2: STRATEGY RECOMMENDATION
+### Phase 3: STRATEGY RECOMMENDATION
 
-Based on discovery findings, present 2-3 options with clear reasoning:
+Based on Phases 1-2 findings, present 2-3 options with clear reasoning:
 
 #### Example Output Template:
 
@@ -87,11 +131,15 @@ Based on discovery findings, present 2-3 options with clear reasoning:
 📊 Analysis of example.com
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Findings:
-✓ Sitemap found: 1,234 product URLs
-✓ API endpoint: GET /api/products/{id}
-✓ Static HTML (no JavaScript rendering needed)
+Phase 1 Intelligence (Reconnaissance):
+✓ API discovered via DevTools: GET /api/products?page=N&limit=100
+✓ Framework: Next.js (SSR + CSR hybrid)
+✓ Protection: Cloudflare detected, rate limit ~60/min
 ✗ No authentication required
+
+Phase 2 Validation:
+✓ Sitemap found: 1,234 product URLs (validates API total)
+✓ Static HTML fallback available if needed
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Recommended Approaches:
@@ -144,7 +192,7 @@ Proceed with Option 1? [Y/n]
 - Show time estimates and complexity
 - Explain reasoning clearly
 
-### Phase 3: ITERATIVE IMPLEMENTATION
+### Phase 4: ITERATIVE IMPLEMENTATION
 
 Implement scraper incrementally, starting simple and adding complexity only as needed.
 
@@ -158,7 +206,7 @@ Implement scraper incrementally, starting simple and adding complexity only as n
 
 **See**: `workflows/implementation.md` for complete implementation patterns and code examples
 
-### Phase 4: PRODUCTIONIZATION (On Request)
+### Phase 5: PRODUCTIONIZATION (On Request)
 
 Convert scraper to production-ready Apify Actor.
 
@@ -180,6 +228,7 @@ Convert scraper to production-ready Apify Actor.
 
 | Task | Pattern/Command | Documentation |
 |------|----------------|---------------|
+| **Reconnaissance** | **Playwright + DevTools MCP** | **`workflows/reconnaissance.md`** |
 | Find sitemaps | `RobotsFile.find(url)` | `strategies/sitemap-discovery.md` |
 | Filter sitemap URLs | `RequestList + regex` | `reference/regex-patterns.md` |
 | Discover APIs | DevTools → Network tab | `strategies/api-discovery.md` |
@@ -268,10 +317,11 @@ See `examples/hybrid-sitemap-api.js` for complete example.
 This skill uses **progressive disclosure** - detailed information is organized in subdirectories and loaded only when needed.
 
 ### Workflows (Implementation Patterns)
-**For**: Step-by-step implementation and productionization guides
+**For**: Step-by-step workflow guides for each phase
 
-- `workflows/implementation.md` - Phase 3 iterative implementation patterns
-- `workflows/productionization.md` - Phase 4 Apify Actor creation workflow
+- `workflows/reconnaissance.md` - **Phase 1 interactive reconnaissance (CRITICAL)**
+- `workflows/implementation.md` - Phase 4 iterative implementation patterns
+- `workflows/productionization.md` - Phase 5 Apify Actor creation workflow
 
 ### Strategies (Deep Dives)
 **For**: Detailed guides on specific scraping approaches
