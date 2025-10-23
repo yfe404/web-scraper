@@ -19,7 +19,9 @@ npm install -g apify-cli
 # 2. Create actor (TypeScript recommended)
 apify create my-scraper
 
-# 3. Select template: playwright-ts
+# 3. Select template based on site type:
+#    - project_cheerio_crawler_ts (static HTML, fastest)
+#    - project_playwright_crawler_ts (JavaScript-heavy)
 
 # 4. Develop and test
 apify run

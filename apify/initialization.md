@@ -65,10 +65,10 @@ apify create my-actor
 
 # CLI prompts:
 ? What type of Actor do you want to create?
-❯ playwright-ts (TypeScript) ← RECOMMENDED
-  playwright-crawler (JavaScript)
-  cheerio-crawler (JavaScript)
-  playwright-python (Python)
+❯ project_cheerio_crawler_ts (TypeScript + Cheerio) ← RECOMMENDED for static HTML
+  project_playwright_crawler_ts (TypeScript + Playwright) ← For JavaScript-heavy
+  project_playwright_camoufox_crawler_ts (TypeScript + Camoufox) ← Anti-bot
+  project_puppeteer_crawler_ts (TypeScript + Puppeteer)
 
 # Navigate to project
 cd my-actor
@@ -108,7 +108,7 @@ apify pull actor-id
 
 ## Generated Structure
 
-### TypeScript Actor (playwright-ts)
+### TypeScript Actor (project_cheerio_crawler_ts or project_playwright_crawler_ts)
 
 ```
 my-actor/
@@ -281,7 +281,7 @@ apify call <actor-id>           # Run on platform
 - Keep CLI updated (`npm update -g apify-cli`)
 - Use `.env` for local secrets
 - Test locally before pushing
-- Use TypeScript template (`playwright-ts`)
+- Use TypeScript templates (Cheerio for static, Playwright for JS-heavy)
 
 ### ❌ DON'T:
 - Don't create actors manually

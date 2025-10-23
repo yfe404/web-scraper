@@ -105,7 +105,9 @@ interface ActorInput {
 # Create new actor with TypeScript template
 apify create my-scraper
 
-# Select: playwright-ts (TypeScript template)
+# Select appropriate TypeScript template:
+# - project_cheerio_crawler_ts (static HTML, fastest)
+# - project_playwright_crawler_ts (JavaScript-heavy sites)
 ```
 
 This auto-generates:
@@ -359,4 +361,4 @@ Or better: Create new TypeScript actor with `apify create` and port logic.
 5. Better team collaboration
 6. Industry standard
 
-**Always use `playwright-ts` template when creating new actors!**
+**Always use TypeScript templates when creating new actors!** (Choose Cheerio for static HTML, Playwright for JS-heavy sites)

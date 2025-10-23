@@ -189,7 +189,7 @@ Convert scraper to production-ready Apify Actor.
 | Handle blocking | fingerprint-suite + proxies | `strategies/anti-blocking.md` |
 | Fingerprint configs | Quick patterns | `reference/fingerprint-patterns.md` |
 | Create Apify Actor | `apify create` | `apify/cli-workflow.md` |
-| TypeScript setup | Use `playwright-ts` | `apify/typescript-first.md` |
+| Template selection | Cheerio vs Playwright | `workflows/productionization.md` |
 | Input schema | `.actor/input_schema.json` | `apify/input-schemas.md` |
 | Deploy actor | `apify push` | `apify/deployment.md` |
 

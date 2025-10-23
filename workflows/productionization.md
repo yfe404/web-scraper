@@ -25,7 +25,71 @@ Benefits:
 Use TypeScript for this Actor? [Y/n]
 ```
 
-## Step 2: Initialize with Apify CLI
+## Step 2: Select Appropriate Template
+
+Based on Phase 1 site analysis, choose the optimal template:
+
+### Decision Tree
+
+**1. Analyze site characteristics** (from Phase 1 discovery):
+   - Static HTML / Server-Side Rendering → Use Cheerio
+   - JavaScript-rendered content → Use Playwright
+   - Anti-bot challenges → Consider Camoufox variant
+
+**2. Template recommendations**:
+
+#### Option A: `project_cheerio_crawler_ts` (Recommended for most cases)
+**Use when:**
+- Site serves static HTML or SSR content
+- No JavaScript execution needed
+- Speed and efficiency are priorities (~10x faster than Playwright)
+- Simple scraping without complex interactions
+
+**Benefits:**
+- Fastest option (raw HTTP requests)
+- Lower resource usage
+- Perfect for: blogs, news sites, e-commerce product pages (non-SPA)
+
+#### Option B: `project_playwright_crawler_ts`
+**Use when:**
+- JavaScript frameworks (React, Vue, Angular, Next.js)
+- Dynamic content loading (infinite scroll, lazy loading)
+- Need browser interactions (clicking, scrolling, forms)
+- Anti-scraping measures present
+
+**Benefits:**
+- Full browser automation
+- Handles complex JavaScript
+- Better for modern SPAs
+
+#### Option C: `project_playwright_camoufox_crawler_ts` (Advanced)
+**Use when:**
+- Facing serious anti-bot challenges
+- Standard Playwright is being blocked
+- Need stealth browser fingerprinting
+
+**Note**: Mentioned in `../strategies/anti-blocking.md`
+
+### Easy Migration
+Switching from CheerioCrawler to PlaywrightCrawler requires minimal changes:
+- Change import: `CheerioCrawler` → `PlaywrightCrawler`
+- Adjust selectors if needed (both use similar syntax)
+- Core logic remains identical
+
+### Hybrid Approach (Advanced)
+```typescript
+// Try Cheerio first for speed
+const cheerioCrawler = new CheerioCrawler({ /* ... */ });
+
+// Fallback to Playwright for failed requests
+const playwrightCrawler = new PlaywrightCrawler({
+    requestHandler: async ({ page, request }) => {
+        // Handle failed Cheerio requests
+    }
+});
+```
+
+## Step 3: Initialize with Apify CLI
 
 **CRITICAL**: Always use `apify create` command
 
@@ -36,9 +100,10 @@ npm install -g apify-cli
 # ALWAYS use apify create (not manual setup)
 apify create my-scraper
 
-# When prompted, select:
-# → playwright-ts (for TypeScript)
-# → playwright-crawler (for JavaScript)
+# When prompted, select the appropriate template:
+# → project_cheerio_crawler_ts (static HTML, fastest)
+# → project_playwright_crawler_ts (JavaScript-heavy sites)
+# → project_playwright_camoufox_crawler_ts (anti-bot challenges)
 ```
 
 ### Why This Is Critical
@@ -51,7 +116,7 @@ apify create my-scraper
 
 See `../apify/cli-workflow.md` for complete guide.
 
-## Step 3: Port Scraping Logic
+## Step 4: Port Scraping Logic
 
 ### Conversion Checklist
 
@@ -63,7 +128,7 @@ See `../apify/cli-workflow.md` for complete guide.
 
 See `../apify/templates/` for complete templates.
 
-## Step 4: Test & Deploy
+## Step 5: Test & Deploy
 
 ```bash
 # Test locally
@@ -83,7 +148,7 @@ See `../apify/deployment.md` for full deployment guide.
 | Task | Command/Pattern | Documentation |
 |------|----------------|---------------|
 | Create Actor | `apify create` | `../apify/cli-workflow.md` |
-| TypeScript setup | Use `playwright-ts` | `../apify/typescript-first.md` |
+| Template selection | Decision tree above | This guide |
 | Input schema | `.actor/input_schema.json` | `../apify/input-schemas.md` |
 | Configuration | `.actor/actor.json` | `../apify/configuration.md` |
 | Deploy actor | `apify push` | `../apify/deployment.md` |

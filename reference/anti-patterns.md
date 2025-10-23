@@ -59,7 +59,7 @@ npm init -y
 
 ```bash
 # GOOD: Use CLI
-apify create my-actor --template playwright-ts
+apify create my-actor --template project_playwright_crawler_ts
 ```
 
 ## ❌ Fragile Selectors

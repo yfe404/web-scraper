@@ -12,7 +12,7 @@ Patterns for `.actor/actor.json` configuration.
     "description": "Short description",
     "version": "1.0",
     "meta": {
-        "templateId": "playwright-ts"
+        "templateId": "project_playwright_crawler_ts"
     },
     "input": "./input_schema.json",
     "dockerfile": "./Dockerfile"
@@ -139,7 +139,7 @@ Memory recommendations:
     "description": "Scrapes product data from e-commerce sites",
     "version": "1.0.0",
     "meta": {
-        "templateId": "playwright-ts"
+        "templateId": "project_playwright_crawler_ts"
     },
     "input": "./input_schema.json",
     "dockerfile": "./Dockerfile",

@@ -37,7 +37,7 @@ User: "Make this an Apify Actor"
 Claude will:
 1. Recommend TypeScript (strongly)
 2. Guide through `apify create` command
-3. Help choose `playwright-ts` template
+3. Help choose appropriate template (Cheerio vs Playwright)
 4. Port scraping logic to Actor format
 5. Configure input schema
 6. Test and deploy
@@ -184,7 +184,7 @@ Presents 2-3 options with:
 For production actors:
 - **Strongly recommend** TypeScript
 - **Always use** `apify create` command
-- **Prefer** `playwright-ts` template
+- **Choose template** based on site type (Cheerio for static, Playwright for JS-heavy)
 - Type-safe input/output
 
 ## Example Workflows
@@ -209,7 +209,7 @@ For production actors:
 2. Claude loads apify/ module
 3. Recommends TypeScript? (Yes)
 4. Guides through: apify create
-5. Selects: playwright-ts template
+5. Analyzes site: Static HTML → Selects Cheerio template
 6. Ports scraping logic to TypeScript
 7. Adds input schema
 8. Tests: apify run

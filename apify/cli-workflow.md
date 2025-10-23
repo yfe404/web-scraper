@@ -81,25 +81,27 @@ apify create my-scraper
 
 ### Step 4: Choose Template
 
-**RECOMMENDED: playwright-ts (TypeScript)**
+**Choose based on site type** (see `../workflows/productionization.md` for decision tree):
 
-Available templates:
+Available TypeScript templates:
 
-| Template | Language | Best For |
-|----------|----------|----------|
-| **playwright-ts** | TypeScript | **Production actors (RECOMMENDED)** |
-| playwright-crawler | JavaScript | Simple JS actors |
-| playwright-python | Python | Python developers |
-| cheerio-crawler | JavaScript | Static HTML sites |
+| Template | Best For | Speed |
+|----------|----------|-------|
+| **project_cheerio_crawler_ts** | Static HTML/SSR (RECOMMENDED) | ~10x faster |
+| **project_playwright_crawler_ts** | JavaScript-heavy sites | Standard |
+| **project_playwright_camoufox_crawler_ts** | Anti-bot challenges | Standard |
 
-**For production, always choose `playwright-ts`**:
+**Selection guide**:
+- Static HTML → `project_cheerio_crawler_ts` (fastest)
+- JavaScript/SPA → `project_playwright_crawler_ts`
+- Being blocked → `project_playwright_camoufox_crawler_ts`
 
 ```
 ? What type of Actor do you want to create?
-❯ playwright-ts (TypeScript) ← SELECT THIS
-  playwright-crawler (JavaScript)
-  cheerio-crawler (JavaScript)
-  playwright-python (Python)
+❯ project_cheerio_crawler_ts (TypeScript + Cheerio)
+  project_playwright_crawler_ts (TypeScript + Playwright)
+  project_playwright_camoufox_crawler_ts (TypeScript + Camoufox)
+  project_puppeteer_crawler_ts (TypeScript + Puppeteer)
 ```
 
 ### Step 5: Navigate to Project
@@ -380,7 +382,7 @@ cd my-actor
 ### ✅ DO:
 
 - **Always use `apify create`** (not manual setup)
-- **Choose `playwright-ts` template** for production
+- **Choose appropriate template** based on site type (see decision tree in productionization guide)
 - **Test locally first** with `apify run`
 - **Use build tags** for staging (`--build-tag beta`)
 - **Keep CLI updated** (`npm update -g apify-cli`)
