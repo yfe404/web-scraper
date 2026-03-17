@@ -1,10 +1,118 @@
-# Fingerprint Configuration Patterns
+# Fingerprint & Anti-Detection Patterns
 
-Quick reference for common fingerprint-suite configurations.
+Quick reference for anti-detection configurations across development and production contexts.
 
-## Basic Patterns
+---
 
-### Desktop Chrome (Windows/Mac) - Most Common
+## Section 1: Stealth Mode (Browser Sessions — proxy-mcp)
+
+Stealth mode is the primary anti-detection mechanism for Chrome browser sessions during interactive development.
+
+### Enable Stealth Mode
+
+```
+interceptor_chrome_launch("https://target-site.com", stealthMode: true)
+```
+
+**Always use** `stealthMode: true` on any site with bot detection.
+
+### What Stealth Mode Patches
+
+| Detection Vector | Patch |
+|-----------------|-------|
+| `navigator.webdriver` | `false` with `configurable:true` |
+| `chrome.runtime` | Exists with expected shape |
+| `Permissions.query` | Correct notification response |
+| `Error.stack` | Cleaned of CDP traces |
+
+### Verify Stealth Mode
+
+Navigate to bot detection test sites and take screenshots:
+
+```
+interceptor_chrome_devtools_navigate("https://bot.sannysoft.com/")
+interceptor_chrome_devtools_screenshot()
+```
+
+All tests should show "pass" with stealth mode enabled.
+
+### Combine with Humanizer
+
+For sites with behavioral detection, add humanizer interactions:
+
+```
+humanizer_click(target_id, selector)      → Bezier curve mouse movement
+humanizer_type(target_id, text)           → WPM-based keystroke timing
+humanizer_scroll(target_id, "down", 500)  → easeInOutQuad scroll
+humanizer_idle(target_id, 2000)           → Micro-jitter anti-idle
+```
+
+### Combine with Upstream Proxy
+
+For IP-level blocking:
+
+```
+proxy_set_upstream("http://user:pass@proxy.apify.com:8000")
+interceptor_chrome_launch("https://target-site.com", stealthMode: true)
+```
+
+---
+
+## Section 2: TLS Fingerprint Presets (HTTP-Only Clients — proxy-mcp)
+
+TLS fingerprint spoofing is for HTTP-only clients (gotScraping, curl, fetch) that need to pass TLS-based bot detection. **Not for Chrome browser sessions.**
+
+### Enable TLS Spoofing
+
+```
+proxy_set_fingerprint_spoof(preset: "chrome_136")
+```
+
+### Available Presets
+
+| Preset | Browser/Client | Use Case |
+|--------|---------------|----------|
+| `chrome_131` | Chrome 131 | General scraping |
+| `chrome_136` | Chrome 136 | Latest Chrome TLS |
+| `chrome_136_linux` | Chrome 136 (Linux) | Linux-based scraping |
+| `firefox_133` | Firefox 133 | When Chrome is blocked |
+| `okhttp3` | OkHttp 3 | Android app emulation |
+| `okhttp4` | OkHttp 4 | Android app emulation |
+| `okhttp5` | OkHttp 5 | Android app emulation |
+
+### When to Use
+
+**Only when ALL of these are true:**
+1. You've found an API via traffic interception
+2. You're switching from browser to HTTP-only client for production
+3. The target blocks based on TLS fingerprint (JA3)
+
+### Verify TLS Fingerprint
+
+```
+proxy_get_tls_fingerprints()           → See what the server sees
+proxy_list_fingerprint_presets()       → List available presets
+proxy_check_fingerprint_runtime()     → Verify impit is available
+```
+
+### Combine with Upstream Proxy
+
+```
+proxy_set_upstream("http://user:pass@proxy.apify.com:8000")
+proxy_set_fingerprint_spoof(preset: "chrome_136")
+```
+
+This gives you both IP rotation AND TLS spoofing for HTTP-only clients.
+
+---
+
+## Section 3: Production (Apify fingerprint-suite)
+
+For production Actors deployed on Apify infrastructure, use the fingerprint-suite with Crawlee.
+
+### Basic Patterns
+
+#### Desktop Chrome (Windows/Mac) — Most Common
 
 ```typescript
 fingerprintOptions: {
@@ -16,19 +124,7 @@ fingerprintOptions: {
 
 **Use for**: Most websites, general scraping
 
-### Mobile iPhone (iOS Safari)
-
-```typescript
-fingerprintOptions: {
-    devices: ['mobile'],
-    operatingSystems: ['ios'],
-    browsers: ['safari'],
-}
-```
-
-**Use for**: Mobile-specific sites, iOS apps' web views
-
-### Mobile Android (Chrome)
+#### Mobile Android (Chrome)
 
 ```typescript
 fingerprintOptions: {
@@ -40,7 +136,7 @@ fingerprintOptions: {
 
 **Use for**: Mobile sites, Android apps' web views
 
-### Desktop Firefox (Linux)
+#### Desktop Firefox (Linux)
 
 ```typescript
 fingerprintOptions: {
@@ -52,46 +148,9 @@ fingerprintOptions: {
 
 **Use for**: Sites blocking Chrome, developer-focused sites
 
-## Advanced Patterns
+### Proxy + Fingerprint Combinations
 
-### Random Desktop Browser
-
-```typescript
-fingerprintOptions: {
-    devices: ['desktop'],
-    operatingSystems: ['windows', 'macos', 'linux'],
-    browsers: ['chrome', 'firefox', 'edge'],
-}
-```
-
-**Use for**: Maximum variety, avoiding pattern detection
-
-### Windows Only (Corporate Environment)
-
-```typescript
-fingerprintOptions: {
-    devices: ['desktop'],
-    operatingSystems: ['windows'],
-    browsers: ['chrome', 'edge'],
-}
-```
-
-**Use for**: Business/enterprise sites
-
-### Mobile Only (Both Platforms)
-
-```typescript
-fingerprintOptions: {
-    devices: ['mobile'],
-    operatingSystems: ['ios', 'android'],
-}
-```
-
-**Use for**: Mobile-first websites
-
-## Proxy + Fingerprint Combinations
-
-### Residential Proxy + Desktop
+#### Residential Proxy + Desktop
 
 ```typescript
 const crawler = new PlaywrightCrawler({
@@ -108,7 +167,7 @@ const crawler = new PlaywrightCrawler({
 
 **Best for**: Strict anti-bot sites (e-commerce, social media)
 
-### Datacenter Proxy + Mobile
+#### Datacenter Proxy + Mobile
 
 ```typescript
 const crawler = new PlaywrightCrawler({
@@ -124,231 +183,35 @@ const crawler = new PlaywrightCrawler({
 
 **Best for**: Mobile scraping with moderate protection
 
-### No Proxy + Fingerprint
+### Session Configuration Patterns
 
-```typescript
-const crawler = new PlaywrightCrawler({
-    fingerprintOptions: {
-        devices: ['desktop'],
-        operatingSystems: ['windows'],
-        browsers: ['chrome'],
-    },
-    // No proxy - use local IP
-});
-```
-
-**Best for**: Sites with light protection, testing
-
-## Session Configuration Patterns
-
-### Aggressive Rotation (Very Strict Sites)
+#### Aggressive Rotation (Very Strict Sites)
 
 ```typescript
 useSessionPool: true,
 sessionPoolOptions: {
     maxPoolSize: 100,
     sessionOptions: {
-        maxUsageCount: 5,      // Rotate after just 5 requests
-        maxErrorScore: 1,       // Retire after single error
+        maxUsageCount: 5,
+        maxErrorScore: 1,
     },
 },
-fingerprintOptions: {
-    devices: ['desktop'],
-    operatingSystems: ['windows', 'macos'],
-    browsers: ['chrome'],
-}
 ```
 
-### Balanced Rotation (Normal Sites)
+#### Balanced Rotation (Normal Sites)
 
 ```typescript
 useSessionPool: true,
 sessionPoolOptions: {
     maxPoolSize: 50,
     sessionOptions: {
-        maxUsageCount: 30,     // 30 requests per session
-        maxErrorScore: 3,       // 3 errors allowed
+        maxUsageCount: 30,
+        maxErrorScore: 3,
     },
 },
-fingerprintOptions: {
-    devices: ['desktop'],
-    browsers: ['chrome'],
-}
 ```
 
-### Minimal Rotation (Light Protection)
-
-```typescript
-useSessionPool: true,
-sessionPoolOptions: {
-    maxPoolSize: 10,
-    sessionOptions: {
-        maxUsageCount: 100,    // Many requests per session
-        maxErrorScore: 5,       // Tolerate more errors
-    },
-},
-fingerprintOptions: {
-    devices: ['desktop'],
-}
-```
-
-## Common Use Cases
-
-### E-commerce Scraping
-
-```typescript
-fingerprintOptions: {
-    devices: ['desktop', 'mobile'],  // Both devices
-    operatingSystems: ['windows', 'macos', 'ios', 'android'],
-    browsers: ['chrome', 'safari'],
-}
-proxyConfiguration: await Actor.createProxyConfiguration({
-    groups: ['RESIDENTIAL'],  // Residential proxies
-    countryCode: 'US',        // Target country
-})
-```
-
-### Social Media Scraping
-
-```typescript
-fingerprintOptions: {
-    devices: ['mobile'],              // Mobile-first
-    operatingSystems: ['ios', 'android'],
-    browsers: ['safari', 'chrome'],
-}
-proxyConfiguration: await Actor.createProxyConfiguration({
-    groups: ['RESIDENTIAL'],
-})
-sessionPoolOptions: {
-    maxUsageCount: 10,                // Rotate frequently
-}
-```
-
-### News/Content Sites
-
-```typescript
-fingerprintOptions: {
-    devices: ['desktop'],
-    operatingSystems: ['windows', 'macos'],
-    browsers: ['chrome', 'firefox'],
-}
-proxyConfiguration: await Actor.createProxyConfiguration({
-    groups: ['SHADER'],               // Datacenter OK
-})
-```
-
-### Travel/Booking Sites
-
-```typescript
-fingerprintOptions: {
-    devices: ['desktop'],
-    operatingSystems: ['windows', 'macos'],
-    browsers: ['chrome'],
-}
-proxyConfiguration: await Actor.createProxyConfiguration({
-    groups: ['RESIDENTIAL'],
-    countryCode: 'US',                // Match target market
-})
-sessionPoolOptions: {
-    maxUsageCount: 20,
-    sessionOptions: {
-        maxAgeSecs: 3600,             // 1-hour session lifetime
-    },
-}
-```
-
-## Testing Patterns
-
-### Test Your Fingerprint
-
-```typescript
-// Visit bot detection sites
-const testUrls = [
-    'https://bot.sannysoft.com/',
-    'https://browserleaks.com/canvas',
-    'https://www.whatismybrowser.com/',
-];
-
-const crawler = new PlaywrightCrawler({
-    fingerprintOptions: {
-        devices: ['desktop'],
-        browsers: ['chrome'],
-    },
-    async requestHandler({ page, request, log }) {
-        await page.screenshot({ path: `test-${Date.now()}.png` });
-        log.info(`Tested: ${request.url}`);
-    },
-});
-
-await crawler.run(testUrls);
-```
-
-## Troubleshooting Patterns
-
-### Pattern 1: Getting Blocked Despite Fingerprints
-
-**Try escalating**:
-
-```typescript
-// From this (basic)
-fingerprintOptions: {
-    devices: ['desktop'],
-}
-
-// To this (specific + proxy)
-fingerprintOptions: {
-    devices: ['desktop'],
-    operatingSystems: ['windows'],
-    browsers: ['chrome'],
-}
-proxyConfiguration: await Actor.createProxyConfiguration({
-    groups: ['RESIDENTIAL'],
-})
-```
-
-### Pattern 2: Mismatched Fingerprint
-
-**Wrong** (iOS fingerprint with Chromium):
-```typescript
-// Using chromium.launch()
-fingerprintOptions: {
-    devices: ['mobile'],
-    operatingSystems: ['ios'],  // ❌ Wrong - iOS uses Safari/WebKit
-    browsers: ['safari'],
-}
-```
-
-**Right**:
-```typescript
-// Using chromium.launch()
-fingerprintOptions: {
-    devices: ['mobile'],
-    operatingSystems: ['android'],  // ✅ Right - Android uses Chrome
-    browsers: ['chrome'],
-}
-```
-
-### Pattern 3: Too Many Variables
-
-**Inefficient** (random everything):
-```typescript
-fingerprintOptions: {
-    devices: ['desktop', 'mobile'],
-    operatingSystems: ['windows', 'macos', 'linux', 'ios', 'android'],
-    browsers: ['chrome', 'firefox', 'safari', 'edge'],
-}
-```
-
-**Better** (focused):
-```typescript
-fingerprintOptions: {
-    devices: ['desktop'],
-    operatingSystems: ['windows', 'macos'],
-    browsers: ['chrome'],
-}
-```
-
-## Quick Reference Table
+### Common Use Cases
 
 | Use Case | Device | OS | Browser | Proxy |
 |----------|--------|----|---------| ------|
@@ -357,12 +220,8 @@ fingerprintOptions: {
 | Social media | mobile | ios, android | safari, chrome | RESIDENTIAL |
 | News sites | desktop | windows, macos | chrome, firefox | SHADER |
 | Booking sites | desktop | windows, macos | chrome | RESIDENTIAL + country |
-| Mobile apps | mobile | ios or android | safari or chrome | RESIDENTIAL |
-| Testing | desktop | windows | chrome | none |
 
-## Copy-Paste Snippets
-
-### Snippet 1: Full Crawlee Setup
+### Full Crawlee Setup
 
 ```typescript
 import { PlaywrightCrawler } from 'crawlee';
@@ -388,37 +247,32 @@ const crawler = new PlaywrightCrawler({
 });
 ```
 
-### Snippet 2: Playwright Only
+### Troubleshooting
 
+**Mismatched fingerprint** — ensure fingerprint options match actual browser:
 ```typescript
-import { chromium } from 'playwright';
-import { newInjectedContext } from 'fingerprint-injector';
-
-const browser = await chromium.launch();
-const context = await newInjectedContext(browser, {
-    fingerprintOptions: {
-        devices: ['desktop'],
-        browsers: ['chrome'],
-    },
-});
-const page = await context.newPage();
-```
-
-### Snippet 3: Mobile Specific
-
-```typescript
+// Using chromium.launch() → use Chrome/Android options, NOT Safari/iOS
 fingerprintOptions: {
     devices: ['mobile'],
-    operatingSystems: ['ios'],
-    browsers: ['safari'],
+    operatingSystems: ['android'],  // NOT ios (iOS uses WebKit)
+    browsers: ['chrome'],           // NOT safari
 }
 ```
 
-## Related
-
-- **Complete guide**: See `../strategies/anti-blocking.md`
-- **Anti-patterns**: See `anti-patterns.md`
+**Too many variables** — focused is better than random:
+```typescript
+// Better: focused
+fingerprintOptions: {
+    devices: ['desktop'],
+    operatingSystems: ['windows', 'macos'],
+    browsers: ['chrome'],
+}
+```
 
 ---
 
-**Remember**: Match fingerprint to actual browser (Chrome fingerprint with Chromium browser)!
+## Related
+
+- **Complete anti-blocking guide**: See `../strategies/anti-blocking.md`
+- **Anti-patterns**: See `anti-patterns.md`
+- **Proxy-MCP tool reference**: See `proxy-tool-reference.md`

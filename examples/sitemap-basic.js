@@ -4,47 +4,45 @@
  * This example shows how to:
  * 1. Automatically discover sitemaps using RobotsFile
  * 2. Get all URLs from sitemaps
- * 3. Scrape pages using Playwright
+ * 3. Scrape pages using CheerioCrawler (fast, HTTP-only)
  *
  * Use this pattern for: E-commerce sites, blogs, news sites with sitemaps
+ * Note: Sitemap URLs are static HTML — use CheerioCrawler (not Playwright)
  */
 
-import { PlaywrightCrawler, RobotsFile, Dataset } from 'crawlee';
+import { CheerioCrawler, RobotsFile, Dataset } from 'crawlee';
 
 async function main() {
     const baseUrl = 'https://example.com';
 
-    console.log(`🔍 Discovering sitemaps for ${baseUrl}...`);
+    console.log(`Discovering sitemaps for ${baseUrl}...`);
 
     // Step 1: Automatically find and parse all sitemaps
     const robots = await RobotsFile.find(baseUrl);
     const urls = await robots.parseUrlsFromSitemaps();
 
-    console.log(`✓ Found ${urls.length} URLs from sitemaps`);
+    console.log(`Found ${urls.length} URLs from sitemaps`);
 
     // Optional: Filter URLs (e.g., only product pages)
     const productUrls = urls.filter(url => url.includes('/products/'));
-    console.log(`✓ Filtered to ${productUrls.length} product URLs`);
+    console.log(`Filtered to ${productUrls.length} product URLs`);
 
-    // Step 2: Create crawler
-    const crawler = new PlaywrightCrawler({
-        maxConcurrency: 5,
+    // Step 2: Create crawler (CheerioCrawler for static HTML — faster than Playwright)
+    const crawler = new CheerioCrawler({
+        maxConcurrency: 10,
         maxRequestsPerMinute: 60,
 
-        async requestHandler({ page, request, log }) {
+        async requestHandler({ $, request, log }) {
             log.info(`Scraping: ${request.url}`);
 
-            // Wait for content to load
-            await page.waitForSelector('body');
-
-            // Extract data
-            const data = await page.evaluate(() => ({
-                title: document.querySelector('h1')?.textContent?.trim(),
-                price: document.querySelector('.price')?.textContent?.trim(),
-                description: document.querySelector('.description')?.textContent?.trim(),
-                image: document.querySelector('img.main-image')?.src,
-                inStock: document.querySelector('.in-stock') !== null,
-            }));
+            // Extract data using Cheerio (jQuery-like syntax)
+            const data = {
+                title: $('h1').text().trim(),
+                price: $('.price').text().trim(),
+                description: $('.description').text().trim(),
+                image: $('img.main-image').attr('src'),
+                inStock: $('.in-stock').length > 0,
+            };
 
             // Save to dataset
             await Dataset.pushData({
@@ -63,7 +61,7 @@ async function main() {
     await crawler.addRequests(productUrls.slice(0, 10)); // Test with first 10
     await crawler.run();
 
-    console.log('✓ Scraping completed');
+    console.log('Scraping completed');
 }
 
 main();

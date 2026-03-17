@@ -1,6 +1,6 @@
 ---
 name: web-scraping
-description: This skill activates for web scraping and Actor development. It proactively discovers sitemaps/APIs, recommends optimal strategy (sitemap/API/Playwright/hybrid), and implements iteratively. For production, it guides TypeScript Actor creation via Apify CLI.
+description: This skill activates for web scraping and Actor development. It proactively discovers APIs via traffic interception, recommends optimal strategy (traffic interception/sitemap/API/DOM scraping/hybrid), and implements iteratively. For production, it guides TypeScript Actor creation via Apify CLI.
 license: MIT
 ---
 
@@ -27,43 +27,51 @@ When user says "scrape X", **immediately start with hands-on reconnaissance** us
 
 **DO NOT jump to automated checks or implementation** - reconnaissance prevents wasted effort and discovers hidden APIs.
 
-#### Use Playwright MCP & Chrome DevTools MCP:
+#### Use Proxy-MCP (Traffic Interception + Stealth Browser + Humanizer):
 
-**1. Open site in real browser** (Playwright MCP)
-   - Navigate like a real user
+**1. Start MITM proxy and launch stealth browser**
+   - `proxy_start()` → Start traffic interception proxy
+   - `interceptor_chrome_launch(url, stealthMode: true)` → Launch Chrome with anti-detection patches (webdriver, chrome.runtime, Permissions.query, Error.stack)
+   - `interceptor_chrome_devtools_attach(target_id)` → Attach DevTools bridge for DOM access
+   - `interceptor_chrome_devtools_screenshot()` → Capture initial state
    - Observe page loading behavior (SSR? SPA? Loading states?)
-   - Take screenshots for reference
-   - Test basic interactions
 
-**2. Monitor network traffic** (Chrome DevTools via Playwright)
-   - Watch XHR/Fetch requests in real-time
+**2. Analyze captured network traffic** (automatic — MITM proxy captures everything)
+   - `proxy_list_traffic(url_filter: "api")` → Find REST API endpoints
+   - `proxy_search_traffic(query: "application/json")` → Find JSON responses
+   - `proxy_get_exchange(exchange_id)` → Inspect full request/response details
+   - `interceptor_chrome_devtools_list_network(resource_types: ["xhr", "fetch"])` → Browser-side network view
    - **Find API endpoints** returning JSON (10-100x faster than HTML scraping!)
-   - Analyze request/response patterns
    - Document headers, cookies, authentication tokens
    - Extract pagination parameters
 
-**3. Test site interactions**
+**3. Test site interactions** (humanizer for anti-detection)
+   - `humanizer_click(target_id, selector)` → Click with human-like Bezier curves
+   - `humanizer_type(target_id, text)` → Type with realistic WPM timing
+   - `humanizer_scroll(target_id, direction, amount)` → Smooth scroll
+   - `humanizer_idle(target_id, duration_ms)` → Idle with micro-jitter
+   - `proxy_clear_traffic()` before each action → Isolate API calls per interaction
    - **Pagination**: URL-based? API? Infinite scroll?
-   - **Filtering and search**: How do they work?
-   - **Dynamic content loading**: Triggers and patterns
-   - **Authentication flows**: Required? Optional?
+   - **Filtering and search**: What API endpoints do they hit?
+   - **Dynamic content loading**: What traffic does scrolling trigger?
 
 **4. Assess protection mechanisms**
-   - Cloudflare/bot detection
-   - CAPTCHA requirements
-   - Rate limiting behavior (test with multiple requests)
-   - Fingerprinting scripts
+   - `interceptor_chrome_devtools_list_cookies(domain_filter: "cloudflare")` → Check for Cloudflare
+   - `interceptor_chrome_devtools_list_storage_keys(storage_type: "local")` → Fingerprinting markers
+   - `proxy_list_traffic()` → Look for 403s, challenge pages
+   - `proxy_get_tls_fingerprints()` → Analyze TLS fingerprints
+   - Note: stealth mode already handles most browser-level detection
 
 **5. Generate Intelligence Report**
    - Site architecture (framework, rendering method)
-   - **Discovered APIs/endpoints** with full specs
+   - **Discovered APIs/endpoints** with full specs (from traffic capture)
    - Protection mechanisms and required countermeasures
-   - **Optimal extraction strategy** (API > Sitemap > HTML)
+   - **Optimal extraction strategy** (Traffic Interception > Sitemap > API > DOM Scraping)
    - Time/complexity estimates
 
-**See**: `workflows/reconnaissance.md` for complete reconnaissance guide with MCP examples
+**See**: `workflows/reconnaissance.md` for complete reconnaissance guide with proxy-mcp examples
 
-**Why this matters**: Reconnaissance discovers hidden APIs (eliminating need for HTML scraping), identifies blockers before coding, and provides intelligence for optimal strategy selection. **Never skip this step.**
+**Why this matters**: Traffic interception automatically discovers hidden APIs (eliminating need for HTML scraping), identifies blockers before coding, and provides intelligence for optimal strategy selection. **Never skip this step.**
 
 ### Phase 2: AUTOMATIC DISCOVERY (Validate Reconnaissance)
 
@@ -79,46 +87,38 @@ curl -I https://[site]/sitemap_index.xml
 ```
 
 **Log findings clearly**:
-- ✓ "Found sitemap at /sitemap.xml with ~1,234 URLs"
-- ✓ "Found sitemap index with 5 sub-sitemaps"
-- ✗ "No sitemap detected at common locations"
+- "Found sitemap at /sitemap.xml with ~1,234 URLs"
+- "Found sitemap index with 5 sub-sitemaps"
+- "No sitemap detected at common locations"
 
 **Why this matters**: Sitemaps provide instant URL discovery (60x faster than crawling)
 
-#### 2. Investigate APIs
+#### 2. Validate Discovered APIs
 
-**Prompt user**:
-```
-Should I check for JSON APIs first? (Highly recommended)
+APIs already discovered automatically via proxy traffic capture in Phase 1. Validate them:
 
-Benefits of APIs vs HTML scraping:
-• 10-100x faster execution
-• More reliable (structured JSON vs fragile HTML)
-• Less bandwidth usage
-• Easier to maintain
+**If APIs were found**, confirm:
+1. Direct access works (test outside browser context)
+2. Pagination parameters function correctly
+3. Rate limits are acceptable
+4. No authentication barriers for target data
 
-Check for APIs? [Y/n]
-```
-
-**If yes**, guide user:
-1. Open browser DevTools → Network tab
-2. Navigate the target website
-3. Look for XHR/Fetch requests
-4. Check for endpoints: `/api/`, `/v1/`, `/v2/`, `/graphql`, `/_next/data/`
-5. Analyze request/response format (JSON, GraphQL, REST)
+**If no APIs were found**, note:
+- Site likely requires DOM scraping
+- Check if content is static (→ Cheerio) or dynamic (→ DevTools bridge)
 
 **Log findings**:
-- ✓ "Found API: GET /api/products/{id} (returns JSON)"
-- ✓ "Found GraphQL endpoint: /graphql"
-- ✗ "No obvious public APIs detected"
+- "Confirmed API: GET /api/products/{id} (returns JSON, no auth)"
+- "Found GraphQL endpoint: /graphql (auth required — use session tokens)"
+- "No APIs detected — DOM scraping required"
 
 #### 3. Analyze Site Structure
 
 **Automatically assess**:
-- JavaScript-heavy? (Look for React, Vue, Angular indicators)
-- Authentication required? (Login walls, auth tokens)
-- Page count estimate (from sitemap or site exploration)
-- Rate limiting indicators (robots.txt directives)
+- JavaScript-heavy? (Look for React, Vue, Angular indicators in traffic)
+- Authentication required? (Login walls, auth tokens in captured requests)
+- Page count estimate (from sitemap or API pagination metadata)
+- Rate limiting indicators (robots.txt directives, 429 responses in traffic)
 
 ### Phase 3: STRATEGY RECOMMENDATION
 
@@ -128,13 +128,14 @@ Based on Phases 1-2 findings, present 2-3 options with clear reasoning:
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 Analysis of example.com
+Analysis of example.com
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Phase 1 Intelligence (Reconnaissance):
-✓ API discovered via DevTools: GET /api/products?page=N&limit=100
+Phase 1 Intelligence (Traffic Interception):
+✓ API discovered via traffic capture: GET /api/products?page=N&limit=100
 ✓ Framework: Next.js (SSR + CSR hybrid)
 ✓ Protection: Cloudflare detected, rate limit ~60/min
+✓ Stealth mode handled browser detection
 ✗ No authentication required
 
 Phase 2 Validation:
@@ -145,30 +146,27 @@ Phase 2 Validation:
 Recommended Approaches:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-⭐ Option 1: Hybrid (Sitemap + API) [RECOMMENDED]
+Option 1: Hybrid (Sitemap + API) [RECOMMENDED]
    ✓ Use sitemap to get all 1,234 product URLs instantly
    ✓ Extract product IDs from URLs
    ✓ Fetch data via API (fast, reliable JSON)
 
-   Estimated time: 8-12 minutes
    Complexity: Low-Medium
    Data quality: Excellent
    Speed: Very Fast
 
-⚡ Option 2: Sitemap + Playwright
+Option 2: Sitemap + DOM Scraping (DevTools Bridge)
    ✓ Use sitemap for URLs
-   ✓ Scrape HTML with Playwright
+   ✓ Scrape HTML via accessibility tree snapshots
 
-   Estimated time: 15-20 minutes
    Complexity: Medium
    Data quality: Good
    Speed: Fast
 
-🔧 Option 3: Pure API (if sitemap fails)
+Option 3: Pure API (if sitemap fails)
    ✓ Discover product IDs through API exploration
    ✓ Fetch all data via API
 
-   Estimated time: 10-15 minutes
    Complexity: Medium
    Data quality: Excellent
    Speed: Fast
@@ -188,8 +186,8 @@ Proceed with Option 1? [Y/n]
 
 **Key principles**:
 - Always recommend the SIMPLEST approach that works
-- Sitemap > API > Playwright (in terms of simplicity)
-- Show time estimates and complexity
+- Traffic Interception > Sitemap > API > DOM Scraping (in terms of priority)
+- Show complexity and data quality
 - Explain reasoning clearly
 
 ### Phase 4: ITERATIVE IMPLEMENTATION
@@ -222,21 +220,26 @@ Convert scraper to production-ready Apify Actor.
 3. Port scraping logic to Actor format
 4. Test locally and deploy
 
+**Note**: During development, proxy-mcp provides reconnaissance and traffic analysis. For production Actors, use Crawlee crawlers (CheerioCrawler/PlaywrightCrawler) on Apify infrastructure.
+
 **See**: `workflows/productionization.md` for complete productionization workflow and `apify/` directory for all Actor development guides
 
 ## Quick Reference
 
 | Task | Pattern/Command | Documentation |
 |------|----------------|---------------|
-| **Reconnaissance** | **Playwright + DevTools MCP** | **`workflows/reconnaissance.md`** |
+| **Reconnaissance** | **Proxy-MCP (Traffic Interception + Stealth Browser)** | **`workflows/reconnaissance.md`** |
+| Traffic analysis | `proxy_list_traffic()` + `proxy_get_exchange()` | `strategies/traffic-interception.md` |
 | Find sitemaps | `RobotsFile.find(url)` | `strategies/sitemap-discovery.md` |
 | Filter sitemap URLs | `RequestList + regex` | `reference/regex-patterns.md` |
-| Discover APIs | DevTools → Network tab | `strategies/api-discovery.md` |
-| Playwright scraping | `PlaywrightCrawler` | `strategies/playwright-scraping.md` |
+| Discover APIs | Traffic capture (automatic) | `strategies/api-discovery.md` |
+| DOM scraping | DevTools bridge + humanizer | `strategies/dom-scraping.md` |
 | HTTP scraping | `CheerioCrawler` | `strategies/cheerio-scraping.md` |
 | Hybrid approach | Sitemap + API | `strategies/hybrid-approaches.md` |
-| Handle blocking | fingerprint-suite + proxies | `strategies/anti-blocking.md` |
-| Fingerprint configs | Quick patterns | `reference/fingerprint-patterns.md` |
+| Handle blocking | Stealth mode + upstream proxies | `strategies/anti-blocking.md` |
+| Session recording | `proxy_session_start()` / `proxy_export_har()` | `strategies/session-workflows.md` |
+| Proxy-MCP tools | Complete reference | `reference/proxy-tool-reference.md` |
+| Fingerprint configs | Stealth + TLS presets | `reference/fingerprint-patterns.md` |
 | Create Apify Actor | `apify create` | `apify/cli-workflow.md` |
 | Template selection | Cheerio vs Playwright | `workflows/productionization.md` |
 | Input schema | `.actor/input_schema.json` | `apify/input-schemas.md` |
@@ -247,18 +250,18 @@ Convert scraper to production-ready Apify Actor.
 ### Pattern 1: Sitemap-Based Scraping
 
 ```javascript
-import { RobotsFile, PlaywrightCrawler, Dataset } from 'crawlee';
+import { RobotsFile, CheerioCrawler, Dataset } from 'crawlee';
 
 // Auto-discover and parse sitemaps
 const robots = await RobotsFile.find('https://example.com');
 const urls = await robots.parseUrlsFromSitemaps();
 
-const crawler = new PlaywrightCrawler({
-    async requestHandler({ page, request }) {
-        const data = await page.evaluate(() => ({
-            title: document.title,
+const crawler = new CheerioCrawler({
+    async requestHandler({ $, request }) {
+        const data = {
+            title: $('h1').text().trim(),
             // ... extract data
-        }));
+        };
         await Dataset.pushData(data);
     },
 });
@@ -326,12 +329,14 @@ This skill uses **progressive disclosure** - detailed information is organized i
 ### Strategies (Deep Dives)
 **For**: Detailed guides on specific scraping approaches
 
+- `strategies/traffic-interception.md` - **Traffic interception via MITM proxy (primary strategy)**
 - `strategies/sitemap-discovery.md` - Complete sitemap guide (4 patterns)
 - `strategies/api-discovery.md` - Finding and using APIs
-- `strategies/playwright-scraping.md` - Browser-based scraping
+- `strategies/dom-scraping.md` - DOM scraping via DevTools bridge
 - `strategies/cheerio-scraping.md` - HTTP-only scraping
 - `strategies/hybrid-approaches.md` - Combining strategies
-- `strategies/anti-blocking.md` - Fingerprinting & proxies for blocked sites
+- `strategies/anti-blocking.md` - Multi-layer anti-detection (stealth, humanizer, proxies, TLS)
+- `strategies/session-workflows.md` - Session recording, HAR export, replay
 
 ### Examples (Runnable Code)
 **For**: Working code to reference or execute
@@ -339,9 +344,9 @@ This skill uses **progressive disclosure** - detailed information is organized i
 **JavaScript Learning Examples** (Simple standalone scripts):
 - `examples/sitemap-basic.js` - Simple sitemap scraper
 - `examples/api-scraper.js` - Pure API approach
-- `examples/playwright-basic.js` - Basic Playwright scraper
+- `examples/traffic-interception-basic.js` - Proxy-based reconnaissance
 - `examples/hybrid-sitemap-api.js` - Combined approach
-- `examples/iterative-fallback.js` - Try sitemap→API→Playwright
+- `examples/iterative-fallback.js` - Try traffic interception→sitemap→API→DOM scraping
 
 **TypeScript Production Examples** (Complete Actors):
 - `apify/examples/basic-scraper/` - Sitemap + Playwright
@@ -351,9 +356,9 @@ This skill uses **progressive disclosure** - detailed information is organized i
 ### Reference (Quick Lookup)
 **For**: Quick patterns and troubleshooting
 
+- `reference/proxy-tool-reference.md` - **Proxy-MCP tool reference (all 80+ tools)**
 - `reference/regex-patterns.md` - Common URL regex patterns
-- `reference/selector-guide.md` - Playwright selector strategies
-- `reference/fingerprint-patterns.md` - Common fingerprint configurations
+- `reference/fingerprint-patterns.md` - Stealth mode + TLS fingerprint presets
 - `reference/anti-patterns.md` - What NOT to do
 
 ### Apify (Production Deployment)
@@ -372,26 +377,32 @@ This skill uses **progressive disclosure** - detailed information is organized i
 
 ## Core Principles
 
-### 1. Progressive Enhancement
+### 1. Traffic Interception First
+Start with the approach that gives the most intelligence:
+- Traffic Interception > Sitemap > API > DOM Scraping
+- MITM proxy reveals hidden APIs automatically
+- Stealth mode handles anti-detection out of the box
+
+### 2. Progressive Enhancement
 Start with the simplest approach that works:
-- Sitemap > API > Playwright
 - Static > Dynamic
 - HTTP > Browser
+- Cheerio > Playwright
 
-### 2. Proactive Discovery
+### 3. Proactive Discovery
 Always investigate before implementing:
-- Check for sitemaps automatically
-- Look for APIs (ask user to check DevTools)
-- Analyze site structure
+- Capture traffic to discover APIs automatically
+- Check for sitemaps
+- Analyze site structure via traffic patterns
 
-### 3. Iterative Implementation
+### 4. Iterative Implementation
 Build incrementally:
 - Small test batch first (5-10 items)
 - Validate quality
 - Scale or fallback
 - Add robustness last
 
-### 4. Production-Ready Code
+### 5. Production-Ready Code
 When productionizing:
 - Use TypeScript (strongly recommended)
 - Use `apify create` (never manual setup)
@@ -400,6 +411,6 @@ When productionizing:
 
 ---
 
-**Remember**: Sitemaps first, APIs second, scraping last!
+**Remember**: Traffic interception first, sitemaps second, APIs third, DOM scraping last!
 
 For detailed guidance on any topic, navigate to the relevant subdirectory file listed above.

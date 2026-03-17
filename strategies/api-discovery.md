@@ -23,27 +23,31 @@ Many websites expose hidden APIs that are **10-100x faster and more reliable** t
 
 ## How to Find APIs
 
-### Step 1: Open Browser DevTools
+### Via Proxy-MCP Traffic Capture (Recommended)
 
-1. Open target website in browser
-2. Press `F12` or `Ctrl+Shift+I` (Windows/Linux) or `Cmd+Option+I` (Mac)
-3. Go to **Network** tab
-4. Filter by **XHR** or **Fetch**
+The MITM proxy captures all traffic automatically during reconnaissance:
 
-### Step 2: Navigate the Website
+```
+proxy_start()
+interceptor_chrome_launch("https://target-site.com", stealthMode: true)
+interceptor_chrome_devtools_attach(target_id)
 
-Interact with the website normally:
-- Browse products
-- Search for items
-- Click pagination
-- Load more content
-- Submit forms
+# Browse the site with humanizer
+humanizer_click(target_id, ".category-link")
+humanizer_idle(target_id, 2000)
 
-Watch the Network tab for API requests!
+# Discover APIs in captured traffic
+proxy_list_traffic(url_filter: "api")
+proxy_list_traffic(url_filter: "/graphql")
+proxy_search_traffic(query: "application/json")
 
-### Step 3: Identify API Patterns
+# Inspect discovered endpoints
+proxy_get_exchange(exchange_id)
+```
 
-Look for requests to:
+### What to Look For
+
+Filter traffic for these common API patterns:
 ```
 /api/...
 /v1/...
@@ -54,9 +58,9 @@ Look for requests to:
 /rest/...
 ```
 
-### Step 4: Analyze Requests
+### Analyze Each Endpoint
 
-For each promising request, check:
+For each promising request found in traffic, use `proxy_get_exchange(exchange_id)` to check:
 - **URL pattern**: Can you construct similar URLs?
 - **Method**: GET, POST, etc.
 - **Headers**: Authentication? Content-Type?
@@ -152,51 +156,47 @@ async function fetchAllProducts() {
 
 ### Cookies
 
-Extract from browser session:
+Extract from browser session via DevTools bridge:
+
+```
+# Get cookies from browser
+interceptor_chrome_devtools_list_cookies()
+
+# Use extracted cookies in API requests
+```
 
 ```javascript
-import { PlaywrightCrawler } from 'crawlee';
-
-const browser = await chromium.launch();
-const page = await browser.newPage();
-
-// Navigate to site and let user login (or automate it)
-await page.goto('https://example.com');
-
-// Get cookies
-const cookies = await page.context().cookies();
-
-// Use in API requests
 await gotScraping({
     url: 'https://api.example.com/data',
     headers: {
-        'Cookie': cookies.map(c => `${c.name}=${c.value}`).join('; '),
+        'Cookie': 'session=abc123; cf_clearance=xyz',
     },
 });
 ```
 
 ### Bearer Tokens
 
-Extract from localStorage or API responses:
+Extract from localStorage via DevTools bridge:
+
+```
+# Get token from browser storage
+interceptor_chrome_devtools_list_storage_keys(storage_type: "local")
+interceptor_chrome_devtools_get_storage_value("auth_token", storage_type: "local")
+```
 
 ```javascript
-// Get token from browser
-const token = await page.evaluate(() => {
-    return localStorage.getItem('auth_token');
-});
-
 // Use in API requests
 await gotScraping({
     url: 'https://api.example.com/data',
     headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `Bearer ${extractedToken}`,
     },
 });
 ```
 
 ### API Keys
 
-Sometimes visible in Network tab headers:
+Often visible in captured traffic headers — inspect with `proxy_get_exchange(exchange_id)`:
 
 ```javascript
 await gotScraping({
@@ -455,9 +455,9 @@ console.log(`Scraped ${products.length} products`);
 **APIs are the BEST way to get data** - always look for them first!
 
 **Key takeaways**:
-1. Open DevTools Network tab before scraping
-2. Look for `/api/`, `/v1/`, `/graphql` endpoints
-3. Use got-scraping for reliability
+1. Use proxy-mcp traffic capture to discover APIs automatically
+2. Look for `/api/`, `/v1/`, `/graphql` endpoints in captured traffic
+3. Use got-scraping for production data extraction
 4. Combine with sitemaps for complete coverage
 5. Respect rate limits and authentication
 6. 10-100x faster than HTML scraping!

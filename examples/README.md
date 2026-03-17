@@ -4,10 +4,10 @@ Runnable code examples demonstrating different scraping patterns.
 
 ## Files in This Directory
 
-1. **sitemap-basic.js** - Get URLs from sitemap, scrape with Playwright
-2. **api-scraper.js** - Pure API-based scraping (fastest)
-3. **hybrid-sitemap-api.js** - Sitemap URLs + API data (best approach)
-4. **playwright-basic.js** - JavaScript-heavy sites
+1. **traffic-interception-basic.js** - Proxy-based reconnaissance (MCP tool sequence)
+2. **sitemap-basic.js** - Get URLs from sitemap, scrape with CheerioCrawler
+3. **api-scraper.js** - Pure API-based scraping (fastest)
+4. **hybrid-sitemap-api.js** - Sitemap URLs + API data (best approach)
 5. **iterative-fallback.js** - Try multiple approaches automatically
 
 ## How to Run
@@ -15,7 +15,7 @@ Runnable code examples demonstrating different scraping patterns.
 ### Prerequisites
 
 ```bash
-npm install crawlee playwright got-scraping
+npm install crawlee got-scraping
 ```
 
 ### Run an Example
@@ -24,19 +24,20 @@ npm install crawlee playwright got-scraping
 node sitemap-basic.js
 node api-scraper.js
 node hybrid-sitemap-api.js
-node playwright-basic.js
 node iterative-fallback.js
 ```
+
+Note: `traffic-interception-basic.js` is a reference for proxy-mcp MCP tool calls, not a standalone Node.js script. It documents the tool call sequence used during interactive reconnaissance with Claude.
 
 ## Example Selection Guide
 
 | Scenario | Example to Use |
 |----------|----------------|
+| First time scraping a site | `traffic-interception-basic.js` (reconnaissance) |
 | Site has sitemap, unknown if has API | `iterative-fallback.js` |
 | Site has sitemap, no API | `sitemap-basic.js` |
 | Site has sitemap + known API | `hybrid-sitemap-api.js` |
 | Site has known API, no sitemap | `api-scraper.js` |
-| JavaScript-heavy site | `playwright-basic.js` |
 
 ## Modifying Examples
 
@@ -55,8 +56,7 @@ Running these examples on a 1000-page e-commerce site:
 |---------|------|---------|----------|
 | `hybrid-sitemap-api.js` | 5 min | Low | Production use |
 | `api-scraper.js` | 8 min | Low | API-first |
-| `sitemap-basic.js` | 20 min | Medium | Sitemap available |
-| `playwright-basic.js` | 45 min | High | JavaScript sites |
+| `sitemap-basic.js` | 15 min | Low | Sitemap available (CheerioCrawler) |
 | `iterative-fallback.js` | Varies | Varies | Unknown sites |
 
 ## Next Steps

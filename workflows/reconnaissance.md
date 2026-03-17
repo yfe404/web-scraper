@@ -7,10 +7,10 @@ Critical intelligence gathering before any scraping implementation.
 **The current problem**: Most scraping projects start with guesswork:
 - "Try the sitemap" → Maybe it doesn't have all data
 - "Scrape HTML" → Slow and brittle
-- "Use Playwright" → Overkill if APIs exist
+- "Use a browser crawler" → Overkill if APIs exist
 
 **The reconnaissance solution**:
-- Discover hidden APIs visible only in browser DevTools (10-100x faster than HTML)
+- Discover hidden APIs automatically via MITM traffic capture (10-100x faster than HTML)
 - Understand site architecture before writing code
 - Detect anti-bot measures early and plan countermeasures
 - Find optimal data extraction points
@@ -19,33 +19,41 @@ Critical intelligence gathering before any scraping implementation.
 ## MCP Tools Required
 
 This phase requires:
-- **Playwright MCP**: Browser automation for real user interaction
-- **Chrome DevTools MCP** (via Playwright): Network monitoring, console analysis
+- **Proxy-MCP**: MITM traffic interception + stealth Chrome browser + DevTools bridge + humanizer
 
-Both are available through Claude's MCP integration when Playwright MCP server is configured.
+Source reference: `/home/yms/Documents/proxy-mcp/`
+
+See `../reference/proxy-tool-reference.md` for complete tool reference.
 
 ---
 
 ## Step 1.1: Initialize Browser Session
 
-### Open Target Site
+### Start Proxy and Launch Browser
 
-Start by opening the site in a real browser to observe its behavior:
+Start the MITM proxy, launch Chrome with stealth mode, and attach DevTools:
 
-```typescript
-// Navigate to target site
-await playwright_navigate({
-  url: "https://target-site.com",
-  headless: false,  // Visual inspection important for first pass
-  waitUntil: "networkidle"  // Wait for all network requests
-});
+```
+proxy_start()
 
-// Capture initial state
-await playwright_screenshot({
-  name: "homepage-initial",
-  fullPage: true,
-  savePng: true
-});
+interceptor_chrome_launch(
+    url: "https://target-site.com",
+    stealthMode: true
+)
+
+interceptor_chrome_devtools_attach(target_id)
+```
+
+Stealth mode automatically patches:
+- `navigator.webdriver` → `false`
+- `chrome.runtime` → exists with expected shape
+- `Permissions.query` → correct notification response
+- `Error.stack` → cleaned of CDP traces
+
+### Capture Initial State
+
+```
+interceptor_chrome_devtools_screenshot()
 ```
 
 ### Observe Loading Behavior
@@ -68,41 +76,36 @@ Initial Load Observation:
 
 ## Step 1.2: Network Traffic Analysis
 
-### Monitor All Network Requests
+### Analyze Captured Traffic
 
-**Critical**: This reveals the "invisible" data layer that drives the site.
+**Critical**: The MITM proxy captures all traffic automatically. No manual DevTools inspection needed.
 
-```typescript
-// Start network monitoring (Playwright automatically captures this)
-await playwright_navigate({
-  url: "https://target-site.com/products"
-});
-
-// Navigate through key pages while monitoring
-await playwright_click({ selector: ".category-link" });
-await playwright_wait({ timeout: 2000 });
-
-await playwright_click({ selector: ".product-item:first-child" });
-await playwright_wait({ timeout: 2000 });
-
-// Retrieve console logs (includes network activity logged by site)
-const logs = await playwright_console_logs({
-  type: "all",
-  limit: 100
-});
+```
+proxy_list_traffic()
 ```
 
-### Analyze Network Patterns
+This shows every HTTP exchange from the page load. Filter for interesting patterns:
 
-Use browser DevTools (manually or via Playwright) to inspect:
+```
+proxy_list_traffic(url_filter: "/api/")          → REST APIs
+proxy_list_traffic(url_filter: "/graphql")        → GraphQL endpoints
+proxy_list_traffic(url_filter: "/_next/data/")    → Next.js data endpoints
+proxy_list_traffic(url_filter: "/wp-json/")       → WordPress REST API
+proxy_search_traffic(query: "application/json")   → Any JSON responses
+```
 
-**API Endpoints to Look For**:
-- `/api/v{N}/...` - Versioned REST APIs
-- `/graphql` - GraphQL endpoints
-- `/_next/data/...` - Next.js data endpoints
-- `/wp-json/...` - WordPress REST API
-- `/ajax/...` - Legacy AJAX endpoints
-- `/__data.json` - SvelteKit data
+Also check browser-side network view:
+```
+interceptor_chrome_devtools_list_network(resource_types: ["xhr", "fetch"])
+```
+
+### Inspect Discovered Endpoints
+
+For each promising endpoint:
+
+```
+proxy_get_exchange(exchange_id)
+```
 
 **What to Extract**:
 ```
@@ -118,26 +121,20 @@ Discovered Endpoints:
    Fields: id, name, price, description, images, stock
 ```
 
-### Inspect Request/Response Details
+### Navigate and Observe Traffic
 
-For each discovered endpoint:
+Browse through key pages while the proxy captures everything:
 
-```typescript
-// Test API endpoint directly
-await playwright_evaluate({
-  script: `
-    fetch('/api/v2/products?page=1&limit=5')
-      .then(r => r.json())
-      .then(data => console.log('API_DATA:', JSON.stringify(data)))
-      .catch(e => console.log('API_ERROR:', e.message));
-  `
-});
+```
+proxy_clear_traffic()
+humanizer_click(target_id, ".category-link")
+humanizer_idle(target_id, 2000)
+proxy_list_traffic(url_filter: "products")
 
-// Check console for output
-const apiLogs = await playwright_console_logs({
-  search: "API_DATA",
-  limit: 1
-});
+proxy_clear_traffic()
+humanizer_click(target_id, ".product-item:first-child")
+humanizer_idle(target_id, 2000)
+proxy_list_traffic()
 ```
 
 **Document**:
@@ -155,20 +152,16 @@ const apiLogs = await playwright_console_logs({
 
 **Pagination Type Detection**:
 
-```typescript
-// Test pagination clicks
-await playwright_click({ selector: ".next-page" });
-await playwright_wait({ timeout: 1000 });
+```
+proxy_clear_traffic()
+humanizer_click(target_id, ".next-page")
+humanizer_idle(target_id, 2000)
+proxy_list_traffic(url_filter: "page=")
+```
 
-// Check if URL changed
-const currentUrl = await playwright_evaluate({
-  script: "window.location.href"
-});
-
-// Check if content was replaced or appended
-const itemCount = await playwright_evaluate({
-  script: "document.querySelectorAll('.product-item').length"
-});
+Check if the URL changed:
+```
+interceptor_chrome_devtools_snapshot()    → Check current page state
 ```
 
 **Pagination Patterns**:
@@ -177,12 +170,12 @@ const itemCount = await playwright_evaluate({
    - Can directly construct URLs
 
 2. **API-based**: XHR with `offset`/`cursor` parameters
-   - Check DevTools Network tab
-   - Extract pagination parameters
+   - Visible in proxy traffic capture
+   - Extract pagination parameters from `proxy_get_exchange()`
 
 3. **Infinite scroll**: Content appends on scroll
-   - Need to trigger scroll events
-   - Watch for API calls
+   - Trigger with `humanizer_scroll()`
+   - Watch for API calls in proxy traffic
 
 **Document**:
 ```
@@ -195,21 +188,17 @@ Pagination:
 
 ### Test Filtering and Search
 
-```typescript
-// Test filter selection
-await playwright_click({ selector: ".filter-category" });
-await playwright_wait({ timeout: 1000 });
+```
+proxy_clear_traffic()
+humanizer_click(target_id, ".filter-category")
+humanizer_idle(target_id, 2000)
+proxy_list_traffic()                               → Observe filter API calls
 
-// Observe URL or API changes
-// Check DevTools Network tab for XHR/Fetch
-
-// Test search functionality
-await playwright_fill({
-  selector: "input[name='search']",
-  value: "test query"
-});
-
-await playwright_click({ selector: "button[type='submit']" });
+proxy_clear_traffic()
+humanizer_click(target_id, "input[name='search']")
+humanizer_type(target_id, "test query")
+humanizer_idle(target_id, 2000)
+proxy_list_traffic(url_filter: "search")           → Observe search API
 ```
 
 **Look for**:
@@ -220,112 +209,85 @@ await playwright_click({ selector: "button[type='submit']" });
 
 ### Discover Data Loading Patterns
 
-```typescript
-// Check for infinite scroll
-await playwright_evaluate({
-  script: `
-    window.scrollTo(0, document.body.scrollHeight);
-  `
-});
-
-await playwright_wait({ timeout: 2000 });
-
-// Check if new content loaded
-const newItemCount = await playwright_evaluate({
-  script: "document.querySelectorAll('.product-item').length"
-});
-
-// Check console for API calls triggered by scroll
-const scrollLogs = await playwright_console_logs({
-  search: "api",
-  limit: 10
-});
+```
+proxy_clear_traffic()
+humanizer_scroll(target_id, "down", 1000)
+humanizer_idle(target_id, 2000)
+proxy_list_traffic(url_filter: "offset")           → Infinite scroll API calls
 ```
 
 ---
 
 ## Step 1.4: Anti-Bot Assessment
 
-### Detect Bot Protection
+### Check for Bot Protection Indicators
 
-```typescript
-// Check for common bot detection indicators
-const protectionCheck = await playwright_evaluate({
-  script: `
-    const bodyText = document.body.textContent.toLowerCase();
-    const html = document.documentElement.outerHTML;
+Review captured traffic for blocking signals:
 
-    ({
-      cloudflare: bodyText.includes('cloudflare') || html.includes('cf-ray'),
-      captcha: bodyText.includes('captcha') || !!document.querySelector('.g-recaptcha, #px-captcha'),
-      accessDenied: bodyText.includes('access denied') || bodyText.includes('403 forbidden'),
-      rateLimited: bodyText.includes('too many requests') || bodyText.includes('429'),
-      akamai: html.includes('akamai'),
-      datadome: html.includes('datadome'),
-      perimeter: html.includes('perimeterx')
-    })
-  `
-});
+```
+proxy_list_traffic()                               → Look for 403s, challenge pages
 ```
 
-### Check for Fingerprinting Scripts
-
-```typescript
-// Detect fingerprinting libraries
-const fingerprintScripts = await playwright_evaluate({
-  script: `
-    Array.from(document.querySelectorAll('script[src]'))
-      .map(s => s.src)
-      .filter(src =>
-        src.includes('fingerprint') ||
-        src.includes('fp-') ||
-        src.includes('akamai') ||
-        src.includes('datadome') ||
-        src.includes('perimeterx') ||
-        src.includes('px-')
-      );
-  `
-});
+Check cookies for tracking markers:
 ```
+interceptor_chrome_devtools_list_cookies(domain_filter: "cloudflare")
+interceptor_chrome_devtools_list_cookies(domain_filter: "datadome")
+```
+
+Check localStorage for fingerprinting:
+```
+interceptor_chrome_devtools_list_storage_keys(storage_type: "local")
+```
+
+### Check for Protection Scripts
+
+```
+interceptor_chrome_devtools_snapshot()
+```
+
+Look in the accessibility tree for:
+- Cloudflare challenge elements
+- CAPTCHA containers
+- "Access Denied" text
+
+### Analyze TLS Fingerprints
+
+```
+proxy_get_tls_fingerprints()
+```
+
+This shows the TLS fingerprints of captured traffic, useful for understanding what the server sees.
 
 ### Test Rate Limiting
 
-```typescript
-// Make multiple rapid requests to test limits
-for (let i = 0; i < 10; i++) {
-  await playwright_navigate({
-    url: `https://target-site.com/products?page=${i}`
-  });
+Navigate to multiple pages and observe responses:
 
-  const blocked = await playwright_evaluate({
-    script: `
-      document.body.textContent.toLowerCase().includes('rate limit') ||
-      document.body.textContent.toLowerCase().includes('too many requests')
-    `
-  });
-
-  if (blocked) {
-    console.log(`Rate limited after ${i} requests`);
-    break;
-  }
-}
+```
+interceptor_chrome_devtools_navigate("https://target-site.com/products?page=1")
+humanizer_idle(target_id, 1000)
+interceptor_chrome_devtools_navigate("https://target-site.com/products?page=2")
+humanizer_idle(target_id, 1000)
+# ... repeat and check for 429 responses
+proxy_list_traffic(url_filter: "429")
 ```
 
 **Document Protection Mechanisms**:
 ```
 Protection Assessment:
-⚠️  Cloudflare: DETECTED (cf-ray header present)
+⚠️  Cloudflare: DETECTED (cf-ray header in proxy traffic)
 ✓   CAPTCHA: Not triggered during normal browsing
 ✓   Fingerprinting: Not detected
 ⚠️  Rate Limiting: ~60 requests/minute threshold
 ✓   Authentication: Not required for product pages
 
 Countermeasures Needed:
-- Use residential or datacenter proxies (Cloudflare)
+- Stealth mode already active (handles browser-level detection)
+- Use upstream proxies for IP rotation (proxy_set_upstream)
 - Respect rate limit: max 50 requests/minute
-- Consider fingerprint-suite if blocks occur
-- Rotate user agents
+- If switching to HTTP-only client: consider TLS spoofing
 ```
+
+**Note**: Chrome with stealth mode already handles most browser-level detection. Escalation to TLS spoofing is only needed if switching to HTTP-only clients (gotScraping, curl) for production.
 
 ---
 
@@ -337,17 +299,17 @@ Create structured report with all reconnaissance data:
 
 ```markdown
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔍 INTELLIGENCE REPORT: example.com
+INTELLIGENCE REPORT: example.com
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Generated: 2025-01-24 10:30 UTC
+Generated: 2026-03-17 10:30 UTC
 
 ## 1. Site Architecture
 
-**Framework**: Next.js 13 (detected __NEXT_DATA__)
+**Framework**: Next.js 13 (detected /_next/data/ in proxy traffic)
 **Rendering**: Hybrid SSR + CSR
 **Primary Data Source**: Internal REST API
 
-## 2. Discovered Endpoints
+## 2. Discovered Endpoints (via Traffic Capture)
 
 ### Products API (Primary)
 **Endpoint**: `GET /api/v2/products`
@@ -385,11 +347,11 @@ Generated: 2025-01-24 10:30 UTC
 
 | Mechanism | Status | Impact |
 |-----------|--------|--------|
-| Cloudflare | ✅ Active | Medium - use proxies |
-| CAPTCHA | ⚪ Not triggered | None currently |
-| Fingerprinting | ⚪ Not detected | None |
-| Rate Limiting | ⚠️ 60/min | High - must respect |
-| Auth Required | ❌ None | None |
+| Cloudflare | Active | Medium - use upstream proxies |
+| CAPTCHA | Not triggered | None currently |
+| Fingerprinting | Not detected | Stealth mode sufficient |
+| Rate Limiting | 60/min | High - must respect |
+| Auth Required | None | None |
 
 ## 5. Pagination Strategy
 
@@ -412,27 +374,26 @@ Generated: 2025-01-24 10:30 UTC
 2. Rate: 50 requests/minute (safe buffer)
 3. Total requests needed: 50
 4. Expected duration: ~1.5 minutes
-5. Use datacenter proxies (Cloudflare present)
+5. Use upstream proxies if needed (Cloudflare present)
 
 **Why This Works**:
-- ✅ API is 10-100x faster than HTML scraping
-- ✅ No HTML parsing needed (clean JSON)
-- ✅ Sitemap validates completeness
-- ✅ Under rate limit
-- ✅ No authentication barriers
+- API discovered via traffic capture — clean JSON, no HTML parsing
+- Sitemap validates completeness
+- Under rate limit
+- No authentication barriers
 
-### Alternative: Direct Sitemap Scraping
+### Alternative: DOM Scraping (DevTools Bridge)
 If API becomes blocked:
-- Scrape HTML from sitemap URLs
-- Use project_playwright_crawler_ts template
-- Enable proxies + fingerprint-suite
+- Use `interceptor_chrome_devtools_snapshot()` for accessibility tree extraction
+- Use humanizer for interactions
+- Enable upstream proxies + stealth mode
 - Estimated time: 15-20 minutes (slower)
 
 ## 7. Implementation Checklist
 
 - [ ] Use `gotScraping` or `fetch` for API calls
 - [ ] Implement rate limiting: 50 requests/minute
-- [ ] Use Apify proxy (datacenter tier minimum)
+- [ ] Use upstream proxy if needed (Cloudflare present)
 - [ ] Parse sitemap for product IDs
 - [ ] Batch API requests (100 items per call)
 - [ ] Add retry logic (3 attempts)
@@ -441,21 +402,35 @@ If API becomes blocked:
 
 ## 8. Risk Assessment
 
-**Low Risk** ✅:
+**Low Risk**:
 - API is stable and publicly accessible
 - No authentication required
 - Rate limits are reasonable
-- Cloudflare not aggressive (with proxies)
 
-**Potential Issues** ⚠️:
+**Potential Issues**:
 - API structure may change (monitor for schema changes)
 - Rate limit may tighten (respect current limits)
-- Cloudflare may upgrade protection (have Playwright fallback ready)
+- Cloudflare may upgrade protection (have DOM scraping fallback ready)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PROCEED TO PHASE 2: VALIDATION & PHASE 3: STRATEGY SELECTION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
+
+---
+
+## Step 1.6: Record Session for Replay
+
+After completing reconnaissance, save the session for future reference:
+
+```
+proxy_session_start("recon-example-com")
+# ... perform any additional exploration ...
+proxy_session_stop(session_id)
+proxy_export_har(session_id, "recon-example-com.har")
+```
+
+The HAR file captures all traffic for later analysis or replay. See `../strategies/session-workflows.md` for complete session management guide.
 
 ---
 
@@ -468,31 +443,33 @@ PROCEED TO PHASE 2: VALIDATION & PHASE 3: STRATEGY SELECTION
 **Reconnaissance Process**:
 
 1. **Browser Session**:
-```typescript
-await playwright_navigate({ url: "https://shop.example.com" });
-await playwright_screenshot({ name: "homepage" });
+```
+proxy_start()
+interceptor_chrome_launch("https://shop.example.com", stealthMode: true)
+interceptor_chrome_devtools_attach(target_id)
+interceptor_chrome_devtools_screenshot()
 ```
 
-2. **Network Analysis**:
-   - Clicked through categories
-   - Observed XHR requests in DevTools
+2. **Traffic Analysis**:
+```
+proxy_list_traffic(url_filter: "api")
+proxy_search_traffic(query: "application/json")
+```
    - **Discovery**: `GET /api/products.json?collection_id=123`
 
-3. **API Testing**:
-```typescript
-await playwright_evaluate({
-  script: `
-    fetch('/api/products.json?collection_id=123&limit=100')
-      .then(r => r.json())
-      .then(d => console.log('FOUND:', d.products.length, 'products'));
-  `
-});
+3. **API Inspection**:
+```
+proxy_get_exchange(exchange_id)
 ```
    - Result: API returns 100 products per request, no auth needed
 
 4. **Protection Check**:
+```
+interceptor_chrome_devtools_list_cookies(domain_filter: "cloudflare")
+proxy_list_traffic(url_filter: "403")
+```
    - No Cloudflare detected
-   - No rate limiting after 20 test requests
+   - No rate limiting after browsing
    - Simple API, no fingerprinting
 
 **Outcome**: Skip HTML scraping entirely, use direct API access (50x faster)
@@ -508,23 +485,26 @@ await playwright_evaluate({
 1. **Initial Load**: Only 10 articles visible
 
 2. **Scroll Test**:
-```typescript
-await playwright_evaluate({
-  script: "window.scrollTo(0, document.body.scrollHeight)"
-});
-await playwright_wait({ timeout: 2000 });
+```
+proxy_clear_traffic()
+humanizer_scroll(target_id, "down", 2000)
+humanizer_idle(target_id, 2000)
 ```
 
-3. **Network Observation**:
+3. **Traffic Observation**:
+```
+proxy_list_traffic(url_filter: "offset")
+proxy_get_exchange(exchange_id)
+```
    - XHR triggered: `GET /api/articles?offset=10`
    - Pattern discovered: offset-based pagination
 
 4. **Pagination Extraction**:
    - Offset increases by 10
-   - Total articles: 500 (from API response header)
+   - Total articles: 500 (from API response)
    - API accessible directly without browser
 
-**Outcome**: Use API with offset pagination instead of Playwright scroll automation
+**Outcome**: Use API with offset pagination instead of scroll automation
 
 ---
 
@@ -534,34 +514,36 @@ await playwright_wait({ timeout: 2000 });
 
 **Reconnaissance**:
 
-1. **Initial Load**: Cloudflare challenge page
+1. **Initial Load**: Stealth mode handles Cloudflare challenge automatically
+```
+proxy_start()
+interceptor_chrome_launch("https://protected.example.com", stealthMode: true)
+interceptor_chrome_devtools_attach(target_id)
+humanizer_idle(target_id, 5000)
+interceptor_chrome_devtools_screenshot()
+```
 
 2. **Protection Analysis**:
-```typescript
-const protection = await playwright_evaluate({
-  script: `
-    document.body.textContent.includes('Checking your browser')
-  `
-});
-// Result: true - Cloudflare active
 ```
-
-3. **Challenge Solving**: Wait for automatic challenge resolution
-```typescript
-await playwright_wait({ timeout: 5000 });
-await playwright_screenshot({ name: "after-challenge" });
+interceptor_chrome_devtools_list_cookies(domain_filter: "cloudflare")
+proxy_list_traffic()
 ```
-
-4. **Post-Challenge Analysis**:
    - Cookies set: `cf_clearance`, `__cfduid`
    - All subsequent requests require these cookies
-   - Standard HTML scraping, no API found
+   - No API found in traffic — standard HTML rendering
+
+3. **Traffic After Challenge**:
+```
+proxy_list_traffic(url_filter: "api")
+proxy_search_traffic(query: "json")
+```
+   - No APIs discovered
 
 **Outcome**:
-- Must use Playwright (browser needed for challenge)
-- Use fingerprint-suite for stealth
-- Use residential proxies
-- Implement cookie persistence
+- Use DOM scraping via DevTools bridge (`interceptor_chrome_devtools_snapshot()`)
+- Stealth mode already handles browser-level detection
+- Use upstream proxies for IP rotation (`proxy_set_upstream()`)
+- For production Actor: use PlaywrightCrawler with fingerprint-suite on Apify infrastructure
 
 ---
 
@@ -570,39 +552,40 @@ await playwright_screenshot({ name: "after-challenge" });
 Based on reconnaissance findings, determine next steps:
 
 ```
-Reconnaissance Complete
-    ├─ API Discovered?
+Reconnaissance Complete (Traffic Captured)
+    ├─ API Discovered in Traffic?
     │   ├─ YES → Prefer API route (Phase 3: API strategy)
-    │   │         └─ Check: Auth required?
-    │   │             ├─ NO → Direct API access ✅ (fastest)
-    │   │             └─ YES → Browser auth + API extraction
-    │   └─ NO → HTML scraping needed
-    │             └─ Check: JavaScript-rendered?
-    │                 ├─ YES → Use Playwright
+    │   │         └─ Auth required?
+    │   │             ├─ NO → Direct API access (fastest)
+    │   │             └─ YES → Record auth flow, extract tokens
+    │   └─ NO → DOM scraping needed
+    │             └─ JavaScript-rendered?
+    │                 ├─ YES → DevTools bridge + humanizer
     │                 └─ NO → Use Cheerio (10x faster)
     │
     ├─ Protection Detected?
     │   ├─ Cloudflare/bot detection
-    │   │   └─ Add: Proxies + Fingerprint-suite
+    │   │   └─ Stealth mode handles browser detection
+    │   │       └─ IP blocked? → Add upstream proxies
     │   ├─ Rate limiting
-    │   │   └─ Add: Rate limiter (respect limits)
+    │   │   └─ Respect limits in implementation
     │   └─ CAPTCHA
-    │       └─ Consider: CAPTCHA solving service or manual intervention
+    │       └─ Consider CAPTCHA solving service or manual intervention
     │
     └─ Sitemap Available?
-        ├─ YES → Use for URL discovery
-        └─ NO → Implement crawler for discovery
+        ├─ YES → Use for URL discovery (combine with API if found)
+        └─ NO → Use traffic-discovered pagination or crawl
 ```
 
 ---
 
 ## Common Mistakes to Avoid
 
-### ❌ Skipping Reconnaissance
+### Skipping Reconnaissance
 
 **Bad**: Jump straight to coding based on assumptions
 ```javascript
-// WRONG: Assuming structure
+// WRONG: Assuming structure, no traffic analysis
 const crawler = new PlaywrightCrawler({
   async requestHandler({ page }) {
     // Blindly scraping HTML without knowing if API exists
@@ -610,43 +593,68 @@ const crawler = new PlaywrightCrawler({
 });
 ```
 
-**Good**: Perform reconnaissance first
+**Good**: Perform traffic interception first
 ```javascript
-// RIGHT: After discovering API in Phase 1
+// RIGHT: After discovering API via proxy traffic capture
 const response = await gotScraping({
   url: discoveredApiEndpoint,  // From reconnaissance
   responseType: 'json'
 });
 ```
 
-### ❌ Ignoring Network Tab
+### Launching Chrome Without Stealth Mode
 
-**Bad**: Only looking at visible HTML
-**Good**: Monitor DevTools Network tab for hidden APIs
+**Bad**: `interceptor_chrome_launch(url)` — no stealth
+**Good**: `interceptor_chrome_launch(url, stealthMode: true)` — always use stealth on protected sites
 
-### ❌ Testing Without Protection Awareness
+### Using interceptor_chrome_navigate Instead of DevTools Navigate
 
-**Bad**: Write scraper, then discover Cloudflare blocks it
-**Good**: Detect Cloudflare in Phase 1, plan proxies from start
+**Bad**: `interceptor_chrome_navigate(url)` — loses DevTools session
+**Good**: `interceptor_chrome_devtools_navigate(url)` — preserves DevTools attachment
+
+### Not Clearing Traffic Before Actions
+
+**Bad**: Looking at all traffic (noisy, includes page load)
+**Good**: `proxy_clear_traffic()` before each action to isolate specific API calls
 
 ---
 
 ## Tools Reference
 
-### MCP Tool Usage
+### Proxy-MCP Tools Used in Reconnaissance
 
-**Playwright MCP commands used in reconnaissance**:
-- `playwright_navigate` - Open URLs
-- `playwright_screenshot` - Capture visual state
-- `playwright_click` - Interact with elements
-- `playwright_fill` - Test form inputs
-- `playwright_evaluate` - Execute JavaScript, test APIs
-- `playwright_console_logs` - Retrieve network/error logs
-- `playwright_wait` - Pause for async operations
+**Initialization**:
+- `proxy_start()` — Start MITM proxy
+- `interceptor_chrome_launch(url, stealthMode)` — Launch stealth Chrome
+- `interceptor_chrome_devtools_attach(target_id)` — Attach DevTools bridge
 
-**Not yet available but useful**:
-- Chrome DevTools Protocol directly (use `playwright_evaluate` workaround)
-- Network HAR export (use console logging workaround)
+**Traffic Analysis**:
+- `proxy_list_traffic(url_filter, method_filter)` — List captured exchanges
+- `proxy_search_traffic(query)` — Full-text search across traffic
+- `proxy_get_exchange(exchange_id)` — Full request/response details
+- `proxy_clear_traffic()` — Clear buffer before actions
+
+**Browser Control (DevTools Bridge)**:
+- `interceptor_chrome_devtools_navigate(url)` — Navigate (preserves DevTools)
+- `interceptor_chrome_devtools_screenshot()` — Capture screenshot
+- `interceptor_chrome_devtools_snapshot()` — Accessibility tree
+- `interceptor_chrome_devtools_list_network(resource_types)` — Browser network view
+- `interceptor_chrome_devtools_list_console()` — Console messages
+- `interceptor_chrome_devtools_list_cookies(domain_filter)` — Cookies
+- `interceptor_chrome_devtools_list_storage_keys(storage_type)` — Storage keys
+
+**Human Interaction (Humanizer)**:
+- `humanizer_click(target_id, selector)` — Click with human-like behavior
+- `humanizer_type(target_id, text)` — Type with realistic timing
+- `humanizer_scroll(target_id, direction, amount)` — Smooth scroll
+- `humanizer_idle(target_id, duration_ms)` — Idle with micro-movements
+
+**Session Management**:
+- `proxy_session_start(name)` — Record session
+- `proxy_session_stop(session_id)` — Stop recording
+- `proxy_export_har(session_id, path)` — Export as HAR
+
+See `../reference/proxy-tool-reference.md` for complete tool reference.
 
 ---
 
@@ -658,7 +666,7 @@ After completing reconnaissance:
 2. **Proceed to Phase 3**: Present strategy recommendations based on intelligence
 3. **Proceed to Phase 4**: Implement chosen strategy with confidence
 
-**Key Advantage**: No more guesswork - every implementation decision is backed by reconnaissance data.
+**Key Advantage**: No more guesswork — every implementation decision is backed by traffic analysis data.
 
 ---
 

@@ -21,7 +21,7 @@ my-scraper/
 ### This Skill Provides: Strategy & Workflow
 
 **When and why**:
-- Phase 1: Interactive reconnaissance (Playwright MCP + DevTools)
+- Phase 1: Interactive reconnaissance (Proxy-MCP traffic interception + stealth browser)
 - Phase 2: Strategy discovery (sitemaps, APIs)
 - Phase 3: Strategy recommendation (which approach to use)
 - Phase 4: Iterative implementation

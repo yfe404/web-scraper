@@ -48,16 +48,24 @@ for (const id of productIds) {
 - Data fetching: 2-5 minutes (API)
 - Total: ~5 minutes for 1000 products
 
-### Pattern 2: Sitemap + Playwright
+### Pattern 2: Sitemap + DOM Scraping
 
 **Use case**: Site has sitemap but no API
 
 **Advantages**:
 - Fast URL discovery (sitemap)
-- Can handle JavaScript (Playwright)
+- Can handle JavaScript-rendered content
 - No need to crawl for URLs
 
-**Example**:
+**Development** (DevTools bridge):
+```
+# Get URLs from sitemap, then for each URL:
+interceptor_chrome_devtools_navigate(url)
+humanizer_idle(target_id, 2000)
+interceptor_chrome_devtools_snapshot()    → Extract data from accessibility tree
+```
+
+**Production** (Crawlee):
 ```javascript
 import { PlaywrightCrawler, RobotsFile, Dataset } from 'crawlee';
 
@@ -65,7 +73,7 @@ import { PlaywrightCrawler, RobotsFile, Dataset } from 'crawlee';
 const robots = await RobotsFile.find('https://example.com');
 const urls = await robots.parseUrlsFromSitemaps();
 
-// 2. Scrape pages with Playwright
+// 2. Scrape pages with PlaywrightCrawler
 const crawler = new PlaywrightCrawler({
     maxConcurrency: 5,
 
@@ -99,17 +107,23 @@ await crawler.run();
 - Automatically fallback if fails
 - Optimal for unknown sites
 
+**Fallback chain**: Traffic Interception → Sitemap + API → Sitemap + DOM → Pure DOM
+
 **Example**:
 ```javascript
 async function scrapeWithFallback(url) {
-    // Try 1: Sitemap + API
+    // Try 1: Traffic Interception → discover API automatically
+    // (Done during Phase 1 reconnaissance with proxy-mcp)
+    // proxy_start() → interceptor_chrome_launch(url, stealthMode: true)
+    // → proxy_list_traffic(url_filter: "api") → proxy_get_exchange()
+
+    // Try 2: Sitemap + API
     try {
         console.log('Attempting: Sitemap + API...');
         const robots = await RobotsFile.find(url);
         const urls = await robots.parseUrlsFromSitemaps();
 
         if (urls.length > 0) {
-            // Check for API
             const apiUrl = await discoverAPI(url);
             if (apiUrl) {
                 console.log('✓ Using Sitemap + API (fastest)');
@@ -120,25 +134,25 @@ async function scrapeWithFallback(url) {
         console.log('✗ Sitemap + API failed');
     }
 
-    // Try 2: Sitemap + Playwright
+    // Try 3: Sitemap + DOM Scraping
     try {
-        console.log('Attempting: Sitemap + Playwright...');
+        console.log('Attempting: Sitemap + DOM Scraping...');
         const robots = await RobotsFile.find(url);
         const urls = await robots.parseUrlsFromSitemaps();
 
         if (urls.length > 0) {
-            console.log('✓ Using Sitemap + Playwright');
-            return await scrapeSitemapPlaywright(urls);
+            console.log('✓ Using Sitemap + DOM Scraping');
+            return await scrapeSitemapDOM(urls);
         }
     } catch (error) {
-        console.log('✗ Sitemap + Playwright failed');
+        console.log('✗ Sitemap + DOM Scraping failed');
     }
 
-    // Try 3: Pure Playwright crawling
+    // Try 4: Pure DOM crawling (fallback)
     try {
-        console.log('Attempting: Playwright crawling...');
-        console.log('✓ Using Playwright crawling (fallback)');
-        return await scrapePlaywrightCrawl(url);
+        console.log('Attempting: DOM crawling (fallback)...');
+        console.log('✓ Using DOM crawling');
+        return await scrapeDOMCrawl(url);
     } catch (error) {
         console.log('✗ All methods failed');
         throw error;
@@ -248,9 +262,10 @@ async function scrapeHybrid(urls) {
 
 | Scenario | Best Approach | Speed | Data Quality |
 |----------|---------------|-------|--------------|
+| API found via traffic capture | Traffic Interception + API | ⚡⚡⚡⚡⚡ | ⭐⭐⭐⭐⭐ |
 | Sitemap + API exist | Sitemap + API | ⚡⚡⚡⚡⚡ | ⭐⭐⭐⭐⭐ |
 | Sitemap + No API + Static | Sitemap + Cheerio | ⚡⚡⚡⚡ | ⭐⭐⭐⭐ |
-| Sitemap + No API + Dynamic | Sitemap + Playwright | ⚡⚡⚡ | ⭐⭐⭐⭐ |
+| Sitemap + No API + Dynamic | Sitemap + DOM Scraping | ⚡⚡⚡ | ⭐⭐⭐⭐ |
 | No Sitemap + API | API Discovery | ⚡⚡⚡⭐ | ⭐⭐⭐⭐⭐ |
 | Unknown Site | Iterative Fallback | ⚡⚡⚡ | ⭐⭐⭐⭐ |
 | Mixed Static/Dynamic | Cheerio + Playwright | ⚡⚡⚡⚡ | ⭐⭐⭐⭐ |
@@ -356,9 +371,10 @@ console.log(`Scraped ${data.length} products`);
 
 ## Related Resources
 
+- **Traffic interception**: See `traffic-interception.md`
 - **Sitemap**: See `sitemap-discovery.md`
 - **API**: See `api-discovery.md`
-- **Playwright**: See `playwright-scraping.md`
+- **DOM scraping**: See `dom-scraping.md`
 - **Cheerio**: See `cheerio-scraping.md`
 - **Examples**: See `../examples/hybrid-sitemap-api.js`
 - **Examples**: See `../examples/iterative-fallback.js`

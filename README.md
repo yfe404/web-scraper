@@ -5,9 +5,9 @@ Intelligent web scraping with automatic strategy selection and TypeScript-first 
 ## Overview
 
 This skill provides:
-- **Interactive reconnaissance** - Hands-on site exploration using Playwright MCP & Chrome DevTools
-- **Proactive strategy discovery** - Automatically checks for sitemaps and APIs
-- **Intelligent recommendations** - Suggests optimal approach (sitemap/API/Playwright/hybrid)
+- **Interactive reconnaissance** - Hands-on site exploration using Proxy-MCP (traffic interception + stealth browser + humanizer)
+- **Proactive strategy discovery** - Automatically discovers APIs via traffic capture, checks for sitemaps
+- **Intelligent recommendations** - Suggests optimal approach (traffic interception/sitemap/API/DOM scraping/hybrid)
 - **Iterative implementation** - Starts simple, adds complexity only if needed
 - **Production-ready guidance** - TypeScript-first Apify Actor development
 
@@ -23,9 +23,9 @@ Add this skill to Claude Code by placing this directory in the skills folder.
 User: "Scrape https://example.com"
 
 Claude will automatically:
-1. Open site in browser (Playwright MCP) - observe loading behavior
-2. Monitor network traffic (DevTools) - discover API endpoints
-3. Test interactions - pagination, filters, dynamic content
+1. Start MITM proxy and launch stealth browser (Proxy-MCP)
+2. Capture and analyze all network traffic - discover API endpoints
+3. Test interactions with humanizer - pagination, filters, dynamic content
 4. Assess protections - Cloudflare, rate limits, fingerprinting
 5. Check for sitemaps (/sitemap.xml, robots.txt)
 6. Generate intelligence report with optimal strategy
@@ -58,20 +58,24 @@ web-scraping/
 │   ├── implementation.md       # Phase 4 iterative implementation
 │   └── productionization.md    # Phase 5 Actor creation
 ├── strategies/                 # Deep-dive guides
+│   ├── traffic-interception.md # MITM proxy traffic capture (primary)
 │   ├── sitemap-discovery.md   # 60x faster URL discovery
 │   ├── api-discovery.md       # 10-100x faster than scraping
-│   ├── playwright-scraping.md # Browser-based scraping
+│   ├── dom-scraping.md        # DevTools bridge + humanizer
 │   ├── cheerio-scraping.md    # HTTP-only (5x faster)
-│   └── hybrid-approaches.md   # Combining strategies
+│   ├── hybrid-approaches.md   # Combining strategies
+│   ├── anti-blocking.md       # Multi-layer anti-detection
+│   └── session-workflows.md   # Session recording, HAR, replay
 ├── examples/                   # Runnable code
+│   ├── traffic-interception-basic.js
 │   ├── sitemap-basic.js
 │   ├── api-scraper.js
 │   ├── hybrid-sitemap-api.js
-│   ├── playwright-basic.js
 │   └── iterative-fallback.js
 ├── reference/                  # Quick lookup
+│   ├── proxy-tool-reference.md # Proxy-MCP tools (80+)
 │   ├── regex-patterns.md
-│   ├── selector-guide.md
+│   ├── fingerprint-patterns.md
 │   └── anti-patterns.md
 ├── apify/                      # Production deployment
 │   ├── typescript-first.md    # Why TypeScript
@@ -166,18 +170,19 @@ This skill follows Anthropic's official best practices for skill development:
 ### 1. Interactive Reconnaissance (Phase 1)
 
 Before any implementation:
-- **Playwright MCP**: Open site in real browser, observe loading behavior, test interactions
-- **Chrome DevTools MCP**: Monitor network traffic, discover hidden APIs, analyze request patterns
+- **Proxy-MCP Traffic Interception**: MITM proxy captures all HTTP/HTTPS traffic automatically
+- **Stealth Browser**: Chrome with anti-detection patches (webdriver, chrome.runtime, etc.)
+- **Humanizer**: Anti-detection interactions (Bezier curves, WPM typing, micro-jitter idle)
 - **Protection Analysis**: Detect Cloudflare, CAPTCHA, rate limiting, fingerprinting
 - **Intelligence Report**: Generate structured findings with optimal strategy recommendation
 
-**Why this matters**: Discovers hidden APIs (10-100x faster than HTML scraping), identifies blockers before coding, provides intelligence for informed strategy selection.
+**Why this matters**: Traffic interception automatically discovers hidden APIs (10-100x faster than HTML scraping), identifies blockers before coding, provides intelligence for informed strategy selection.
 
 ### 2. Proactive Discovery (Phase 2)
 
 Automatically validates reconnaissance findings:
 - Sitemaps (`/sitemap.xml`, `robots.txt`)
-- API endpoints (confirmed from DevTools analysis)
+- API endpoints (discovered automatically via traffic capture)
 - Site structure (JavaScript-heavy? Authentication?)
 
 ### 3. Strategic Recommendations (Phase 3)
@@ -209,12 +214,12 @@ For production actors:
 
 ```
 1. User: "Scrape example.com"
-2. Claude opens site with Playwright MCP (Phase 1 reconnaissance)
-3. Claude monitors DevTools, finds API endpoint GET /api/products
-4. Claude tests pagination, detects Cloudflare protection
+2. Claude starts MITM proxy, launches stealth Chrome (Phase 1 reconnaissance)
+3. Claude analyzes captured traffic, finds API endpoint GET /api/products
+4. Claude tests pagination with humanizer, detects Cloudflare protection
 5. Claude checks sitemap (validates Phase 1 findings - 1,234 URLs)
 6. Claude generates intelligence report
-7. Claude recommends: Hybrid (Sitemap + API + Proxies)
+7. Claude recommends: Hybrid (Sitemap + API + Upstream Proxies)
 8. Implements with discovered API endpoints
 9. Tests with 10 items
 10. Scales to full dataset
@@ -248,29 +253,29 @@ For production actors:
 ## Best Practices Summary
 
 ### Reconnaissance Phase (Phase 1)
-✅ Always start with Playwright MCP + DevTools exploration
-✅ Discover APIs before attempting HTML scraping
-✅ Test site interactions to understand behavior
-✅ Assess protections early (Cloudflare, CAPTCHA, rate limits)
-✅ Generate intelligence report with findings
+- Always start with Proxy-MCP traffic interception
+- Discover APIs automatically via traffic capture
+- Test interactions with humanizer
+- Assess protections early (Cloudflare, CAPTCHA, rate limits)
+- Generate intelligence report with findings
 
 ### Discovery Phase (Phase 2)
-✅ Validate reconnaissance with automated sitemap checks
-✅ Confirm API endpoints discovered in Phase 1
-✅ Analyze site structure based on observations
+- Validate reconnaissance with automated sitemap checks
+- Confirm API endpoints discovered via traffic capture
+- Analyze site structure based on observations
 
 ### Implementation Phase (Phase 4)
-✅ Start simple (sitemap → API → Playwright)
-✅ Test small batch first
-✅ Handle errors gracefully
-✅ Respect rate limits
+- Start simple (traffic interception → sitemap → API → DOM scraping)
+- Test small batch first
+- Handle errors gracefully
+- Respect rate limits
 
 ### Production Phase (Phase 5)
-✅ Use TypeScript for Apify Actors
-✅ Always use `apify create` command
-✅ Choose template based on Phase 1 findings (Cheerio vs Playwright)
-✅ Test locally with `apify run`
-✅ Deploy with `apify push`
+- Use TypeScript for Apify Actors
+- Always use `apify create` command
+- Choose template based on Phase 1 findings (Cheerio vs Playwright)
+- Test locally with `apify run`
+- Deploy with `apify push`
 
 ## Troubleshooting
 
@@ -280,8 +285,8 @@ For production actors:
 ### "API requires authentication"
 → See `strategies/api-discovery.md` authentication section
 
-### "Playwright too slow"
-→ See `strategies/playwright-scraping.md` performance optimization
+### "DOM scraping too slow"
+→ See `strategies/dom-scraping.md` and consider API discovered via traffic capture
 
 ### "Actor deployment fails"
 → See `apify/cli-workflow.md` common issues section
@@ -308,10 +313,11 @@ This skill prioritizes:
 
 ## Version
 
-**4.0.0** - Intelligence-driven scraping:
-- **NEW**: Interactive reconnaissance phase (Playwright MCP + Chrome DevTools)
-- **NEW**: API discovery before HTML scraping
-- **NEW**: Protection analysis and countermeasures
+**5.0.0** - Traffic-interception-first scraping:
+- **NEW**: Proxy-MCP integration (MITM traffic interception + stealth browser + humanizer)
+- **NEW**: Automatic API discovery via traffic capture
+- **NEW**: Multi-layer anti-detection (stealth mode, humanizer, upstream proxies, TLS spoofing)
+- **NEW**: Session recording and HAR export/replay
 - Progressive disclosure architecture
 - Proactive strategy discovery
 - TypeScript-first Apify guidance

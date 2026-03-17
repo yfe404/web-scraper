@@ -57,7 +57,7 @@ Sitemap: https://example.com/blog-sitemap.xml
 Use `RobotsFile` to automatically find and parse all sitemaps:
 
 ```javascript
-import { PlaywrightCrawler, RobotsFile, Dataset } from 'crawlee';
+import { CheerioCrawler, RobotsFile, Dataset } from 'crawlee';
 
 // Automatically finds robots.txt and parses ALL sitemaps
 const robots = await RobotsFile.find('https://example.com');
@@ -66,15 +66,15 @@ const allUrls = await robots.parseUrlsFromSitemaps();
 console.log(`Found ${allUrls.length} URLs from sitemaps`);
 
 // Create crawler
-const crawler = new PlaywrightCrawler({
-    async requestHandler({ page, request, log }) {
+const crawler = new CheerioCrawler({
+    async requestHandler({ $, request, log }) {
         log.info(`Scraping: ${request.url}`);
 
-        const data = await page.evaluate(() => ({
-            title: document.title,
-            price: document.querySelector('.price')?.textContent,
-            description: document.querySelector('.description')?.textContent,
-        }));
+        const data = {
+            title: $('title').text().trim(),
+            price: $('.price').text().trim(),
+            description: $('.description').text().trim(),
+        };
 
         await Dataset.pushData(data);
     },
@@ -96,7 +96,7 @@ await crawler.run();
 Use `RequestList` to filter only specific URL patterns:
 
 ```javascript
-import { PlaywrightCrawler, RequestList, Dataset } from 'crawlee';
+import { CheerioCrawler, RequestList, Dataset } from 'crawlee';
 
 // Load sitemap and filter URLs with regex
 const requestList = await RequestList.open(null, [{
@@ -105,16 +105,16 @@ const requestList = await RequestList.open(null, [{
     regex: /\/products\/[a-z0-9-]+$/i,
 }]);
 
-const crawler = new PlaywrightCrawler({
+const crawler = new CheerioCrawler({
     requestList,
-    async requestHandler({ page, request, log }) {
+    async requestHandler({ $, request, log }) {
         log.info(`Scraping product: ${request.url}`);
 
-        const product = await page.evaluate(() => ({
-            name: document.querySelector('h1')?.textContent,
-            price: document.querySelector('[data-testid="price"]')?.textContent,
-            sku: document.querySelector('[data-sku]')?.dataset.sku,
-        }));
+        const product = {
+            name: $('h1').text().trim(),
+            price: $('[data-testid="price"]').text().trim(),
+            sku: $('[data-sku]').attr('data-sku'),
+        };
 
         await Dataset.pushData(product);
     },
@@ -149,7 +149,7 @@ See `../reference/regex-patterns.md` for more patterns.
 Load specific sitemap URLs directly:
 
 ```javascript
-import { PlaywrightCrawler, Sitemap, Dataset } from 'crawlee';
+import { CheerioCrawler, Sitemap, Dataset } from 'crawlee';
 
 // Load multiple sitemaps
 const sitemap = await Sitemap.load([
@@ -159,22 +159,22 @@ const sitemap = await Sitemap.load([
 
 console.log(`Found ${sitemap.urls.length} URLs`);
 
-const crawler = new PlaywrightCrawler({
-    async requestHandler({ page, request, log }) {
+const crawler = new CheerioCrawler({
+    async requestHandler({ $, request, log }) {
         // Handle both products and blog posts
         if (request.url.includes('/products/')) {
             // Scrape product
-            const product = await page.evaluate(() => ({
-                name: document.querySelector('h1')?.textContent,
-                price: document.querySelector('.price')?.textContent,
-            }));
+            const product = {
+                name: $('h1').text().trim(),
+                price: $('.price').text().trim(),
+            };
             await Dataset.pushData({ type: 'product', ...product });
         } else if (request.url.includes('/blog/')) {
             // Scrape blog post
-            const post = await page.evaluate(() => ({
-                title: document.querySelector('h1')?.textContent,
-                content: document.querySelector('.content')?.textContent,
-            }));
+            const post = {
+                title: $('h1').text().trim(),
+                content: $('.content').text().trim(),
+            };
             await Dataset.pushData({ type: 'post', ...post });
         }
     },
@@ -189,22 +189,22 @@ await crawler.run();
 Start with sitemap, then also crawl discovered links:
 
 ```javascript
-import { PlaywrightCrawler, RobotsFile, Dataset } from 'crawlee';
+import { CheerioCrawler, RobotsFile, Dataset } from 'crawlee';
 
 // Start with sitemap URLs
 const robots = await RobotsFile.find('https://example.com');
 const sitemapUrls = await robots.parseUrlsFromSitemaps();
 
-const crawler = new PlaywrightCrawler({
+const crawler = new CheerioCrawler({
     maxRequestsPerCrawl: 5000,
-    async requestHandler({ page, enqueueLinks, request, log }) {
+    async requestHandler({ $, enqueueLinks, request, log }) {
         log.info(`Processing: ${request.url}`);
 
         // Scrape data
-        const data = await page.evaluate(() => ({
-            title: document.title,
-            links: Array.from(document.querySelectorAll('a')).map(a => a.href),
-        }));
+        const data = {
+            title: $('title').text().trim(),
+            links: $('a').map((_, el) => $(el).attr('href')).get(),
+        };
 
         await Dataset.pushData(data);
 
@@ -258,7 +258,7 @@ const highPriorityUrls = sitemap.urls.filter(urlObj => {
 Always handle cases where sitemaps might not exist or be malformed:
 
 ```javascript
-import { PlaywrightCrawler, RobotsFile, Dataset } from 'crawlee';
+import { CheerioCrawler, RobotsFile, Dataset } from 'crawlee';
 
 try {
     // Try to find and parse sitemaps
@@ -272,7 +272,7 @@ try {
     } else {
         console.log(`✓ Found ${urls.length} URLs, starting scrape`);
 
-        const crawler = new PlaywrightCrawler({
+        const crawler = new CheerioCrawler({
             async requestHandler({ page, request, log }) {
                 // Scrape logic
             },
@@ -360,7 +360,7 @@ const requestList = await RequestList.open(null, [{
 
 **Solution**: Add error handling
 ```javascript
-const crawler = new PlaywrightCrawler({
+const crawler = new CheerioCrawler({
     failedRequestHandler({ request, error }, { log }) {
         log.warning(`URL from sitemap returned error: ${request.url}`);
         // Don't crash, just log and continue
@@ -368,8 +368,21 @@ const crawler = new PlaywrightCrawler({
 });
 ```
 
+## Validating Sitemap with Traffic Capture
+
+After discovering a sitemap, validate its coverage against proxy traffic capture:
+
+```
+# During reconnaissance, compare sitemap URL count with API pagination metadata
+proxy_list_traffic(url_filter: "products")
+proxy_get_exchange(exchange_id)    → Check "total" field in API response
+```
+
+If the API reports 5,000 products but the sitemap only has 3,000 URLs, the sitemap may be incomplete — use the API for full coverage.
+
 ## Related Resources
 
+- **Traffic interception**: See `traffic-interception.md`
 - **Regex patterns**: See `../reference/regex-patterns.md`
 - **Hybrid approaches**: See `hybrid-approaches.md`
 - **API discovery**: See `api-discovery.md` (often better than scraping)

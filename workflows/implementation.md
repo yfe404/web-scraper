@@ -13,9 +13,10 @@ Patterns for implementing scrapers incrementally, starting simple and adding com
 
 ### Reference Implementation Patterns
 
+- **Traffic interception**: See `../strategies/traffic-interception.md`
 - **Sitemap**: See `../strategies/sitemap-discovery.md`
 - **API**: See `../strategies/api-discovery.md`
-- **Playwright**: See `../strategies/playwright-scraping.md`
+- **DOM scraping**: See `../strategies/dom-scraping.md`
 - **Examples**: See `../examples/` directory
 
 ## Step 2: Test Small Batch First
@@ -67,6 +68,20 @@ console.log('✗ Issues detected, falling back to alternative strategy...');
 
 See `../strategies/anti-blocking.md` for complete guide.
 
+**During development** (proxy-mcp):
+```
+# Stealth mode handles most browser-level detection
+interceptor_chrome_launch(url, stealthMode: true)
+
+# Add humanizer for behavioral anti-detection
+humanizer_click(target_id, selector)
+humanizer_idle(target_id, duration_ms)
+
+# Add upstream proxy for IP rotation if needed
+proxy_set_upstream("http://user:pass@proxy.apify.com:8000")
+```
+
+**For production Actors** (Crawlee):
 ```typescript
 const crawler = new PlaywrightCrawler({
     // Enable fingerprinting
@@ -90,8 +105,8 @@ const crawler = new PlaywrightCrawler({
 
 ### Test Incrementally
 
-1. Start with fingerprinting only
-2. Add datacenter proxies if still blocked
+1. Start with stealth mode (proxy-mcp) or fingerprinting (Crawlee)
+2. Add upstream proxies / datacenter proxies if still blocked
 3. Upgrade to residential proxies if needed
 4. Add session rotation
 

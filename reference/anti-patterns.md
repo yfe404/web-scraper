@@ -2,11 +2,11 @@
 
 Common mistakes and how to fix them.
 
-## ❌ Ignoring Sitemaps
+## Ignoring Sitemaps
 
 ```javascript
 // BAD: Crawling when sitemap exists
-const crawler = new PlaywrightCrawler({
+const crawler = new CheerioCrawler({
     async requestHandler({ enqueueLinks }) {
         await enqueueLinks(); // Slow!
     },
@@ -20,35 +20,35 @@ const urls = await robots.parseUrlsFromSitemaps();
 await crawler.addRequests(urls); // Fast!
 ```
 
-## ❌ Scraping When API Exists
+## Scraping DOM When Traffic Capture Found the API
 
-```javascript
-// BAD: Scraping HTML
-const title = await page.$eval('.product-title', el => el.textContent);
+```
+// BAD: Scraping HTML when traffic capture revealed an API
+interceptor_chrome_devtools_snapshot()    → Parsing accessibility tree for data
 ```
 
 ```javascript
-// GOOD: Use API
+// GOOD: Use the API discovered via proxy traffic capture
 const data = await gotScraping({
-    url: 'https://api.shop.com/products/123',
+    url: 'https://api.shop.com/products/123',  // Found via proxy_list_traffic()
     responseType: 'json',
 });
 ```
 
-## ❌ Using Arbitrary Waits
+## Using Arbitrary Waits
 
-```javascript
-// BAD
-await page.waitForTimeout(5000); // DON'T!
+```
+// BAD: Sleeping without anti-detection
+// (no micro-movements, triggers idle detection)
+sleep(5000)
 ```
 
-```javascript
-// GOOD
-await page.waitForSelector('.loaded');
-await expect(page.locator('.loaded')).toBeVisible();
+```
+// GOOD: Use humanizer_idle (includes micro-jitter and micro-scrolls)
+humanizer_idle(target_id, 5000)
 ```
 
-## ❌ Not Using `apify create`
+## Not Using `apify create`
 
 ```javascript
 // BAD: Manual setup
@@ -59,22 +59,50 @@ npm init -y
 
 ```bash
 # GOOD: Use CLI
-apify create my-actor --template project_playwright_crawler_ts
+apify create my-actor --template project_cheerio_crawler_ts
 ```
 
-## ❌ Fragile Selectors
+## Using proxy_set_fingerprint_spoof for Chrome Browser Sessions
 
-```javascript
-// BAD: CSS classes (break easily)
-await page.locator('.btn.btn-primary.add-cart-btn').click();
+```
+// BAD: TLS spoofing for Chrome (Chrome already has a real TLS fingerprint)
+proxy_set_fingerprint_spoof(preset: "chrome_136")
+interceptor_chrome_launch("https://site.com", stealthMode: true)
 ```
 
-```javascript
-// GOOD: Role-based
-await page.getByRole('button', { name: 'Add to cart' }).click();
+```
+// GOOD: Stealth mode is sufficient for Chrome browser sessions
+interceptor_chrome_launch("https://site.com", stealthMode: true)
+// TLS spoofing is only for HTTP-only clients (gotScraping, curl, fetch)
 ```
 
-## ❌ No Error Handling
+## Using interceptor_chrome_navigate Instead of DevTools Navigate
+
+```
+// BAD: Loses DevTools session
+interceptor_chrome_devtools_attach(target_id)
+interceptor_chrome_navigate("https://site.com/page2")    // DevTools detached!
+```
+
+```
+// GOOD: Preserves DevTools attachment
+interceptor_chrome_devtools_attach(target_id)
+interceptor_chrome_devtools_navigate("https://site.com/page2")   // DevTools still attached
+```
+
+## Launching Chrome Without Stealth Mode on Protected Sites
+
+```
+// BAD: No stealth mode — bot detection will flag this
+interceptor_chrome_launch("https://protected-site.com")
+```
+
+```
+// GOOD: Always use stealth mode on protected sites
+interceptor_chrome_launch("https://protected-site.com", stealthMode: true)
+```
+
+## No Error Handling
 
 ```javascript
 // BAD: Crashes on error
@@ -89,4 +117,20 @@ try {
     log.warning('Price not found');
     return null;
 }
+```
+
+## Not Clearing Traffic Before Actions
+
+```
+// BAD: Noisy traffic from page load mixed with action traffic
+humanizer_click(target_id, ".next-page")
+proxy_list_traffic()    // Shows everything since page load — hard to find the relevant API call
+```
+
+```
+// GOOD: Clear traffic before action to isolate API calls
+proxy_clear_traffic()
+humanizer_click(target_id, ".next-page")
+humanizer_idle(target_id, 2000)
+proxy_list_traffic()    // Only shows traffic triggered by the click
 ```

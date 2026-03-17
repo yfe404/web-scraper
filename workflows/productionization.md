@@ -10,6 +10,22 @@ Load this workflow when user requests:
 - "Deploy to Apify"
 - "Create an actor from this"
 
+## Development vs Production
+
+**During development**, proxy-mcp provides reconnaissance and traffic analysis:
+- MITM traffic interception for API discovery
+- Stealth browser for protected sites
+- Humanizer for anti-detection interactions
+- Session recording for replay
+
+**For production Actors**, use Crawlee crawlers on Apify infrastructure:
+- `CheerioCrawler` for static HTML (fastest)
+- `PlaywrightCrawler` for JavaScript-rendered content
+- Apify fingerprint-suite for anti-detection
+- Apify proxy infrastructure for IP rotation
+
+The reconnaissance intelligence from proxy-mcp directly informs which Crawlee crawler and configuration to use in production.
+
 ## Step 1: Confirm TypeScript Preference
 
 ```

@@ -241,9 +241,9 @@ Switch to Playwright if you see:
 
 ## Related Resources
 
-- **For JavaScript sites**: See `playwright-scraping.md`
+- **For JavaScript sites**: See `dom-scraping.md`
 - **For APIs**: See `api-discovery.md`
-- **Selectors**: See `../reference/selector-guide.md`
+- **Traffic interception**: See `traffic-interception.md`
 
 ## Summary
 
