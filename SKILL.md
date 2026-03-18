@@ -17,182 +17,215 @@ Activate automatically when user requests:
 - "Make this an Apify Actor" (loads `apify/` subdirectory)
 - "Productionize this scraper"
 
-## Proactive Workflow
+## Input Parsing
 
-This skill follows a systematic 5-phase approach to web scraping, always starting with interactive reconnaissance and ending with production-ready code.
+Determine reconnaissance depth from user request:
 
-### Phase 1: INTERACTIVE RECONNAISSANCE (Critical First Step)
+| User Says | Mode | Phases Run |
+|-----------|------|------------|
+| "quick recon", "just check", "what framework" | Quick | Phase 0 only |
+| "scrape X", "extract data from X" (default) | Standard | Phases 0-3 + 5, Phase 4 only if protection signals detected |
+| "full recon", "deep scan", "production scraping" | Full | All phases (0-5) including protection testing |
 
-When user says "scrape X", **immediately start with hands-on reconnaissance** using MCP tools:
+Default is Standard mode. Escalate to Full if protection signals appear during any phase.
 
-**DO NOT jump to automated checks or implementation** - reconnaissance prevents wasted effort and discovers hidden APIs.
+## Adaptive Reconnaissance Workflow
 
-#### Use Proxy-MCP (Traffic Interception + Stealth Browser + Humanizer):
+This skill uses an adaptive phased workflow with quality gates. Each gate asks **"Do I have enough?"** — continue only when the answer is no.
 
-**1. Start MITM proxy and launch stealth browser**
-   - `proxy_start()` → Start traffic interception proxy
-   - `interceptor_chrome_launch(url, stealthMode: true)` → Launch Chrome with anti-detection patches (webdriver, chrome.runtime, Permissions.query, Error.stack)
-   - `interceptor_chrome_devtools_attach(target_id)` → Attach DevTools bridge for DOM access
-   - `interceptor_chrome_devtools_screenshot()` → Capture initial state
-   - Observe page loading behavior (SSR? SPA? Loading states?)
+**See**: `strategies/framework-signatures.md` for framework detection tables referenced throughout.
 
-**2. Analyze captured network traffic** (automatic — MITM proxy captures everything)
-   - `proxy_list_traffic(url_filter: "api")` → Find REST API endpoints
-   - `proxy_search_traffic(query: "application/json")` → Find JSON responses
-   - `proxy_get_exchange(exchange_id)` → Inspect full request/response details
-   - `interceptor_chrome_devtools_list_network(resource_types: ["xhr", "fetch"])` → Browser-side network view
-   - **Find API endpoints** returning JSON (10-100x faster than HTML scraping!)
-   - Document headers, cookies, authentication tokens
-   - Extract pagination parameters
+### Phase 0: QUICK ASSESSMENT (curl, no browser)
 
-**3. Test site interactions** (humanizer for anti-detection)
-   - `humanizer_click(target_id, selector)` → Click with human-like Bezier curves
-   - `humanizer_type(target_id, text)` → Type with realistic WPM timing
-   - `humanizer_scroll(target_id, direction, amount)` → Smooth scroll
-   - `humanizer_idle(target_id, duration_ms)` → Idle with micro-jitter
-   - `proxy_clear_traffic()` before each action → Isolate API calls per interaction
-   - **Pagination**: URL-based? API? Infinite scroll?
-   - **Filtering and search**: What API endpoints do they hit?
-   - **Dynamic content loading**: What traffic does scrolling trigger?
+Gather maximum intelligence with minimum cost — a single HTTP request.
 
-**4. Assess protection mechanisms**
-   - `interceptor_chrome_devtools_list_cookies(domain_filter: "cloudflare")` → Check for Cloudflare
-   - `interceptor_chrome_devtools_list_storage_keys(storage_type: "local")` → Fingerprinting markers
-   - `proxy_list_traffic()` → Look for 403s, challenge pages
-   - `proxy_get_tls_fingerprints()` → Analyze TLS fingerprints
-   - Note: stealth mode already handles most browser-level detection
-
-**5. Generate Intelligence Report**
-   - Site architecture (framework, rendering method)
-   - **Discovered APIs/endpoints** with full specs (from traffic capture)
-   - Protection mechanisms and required countermeasures
-   - **Optimal extraction strategy** (Traffic Interception > Sitemap > API > DOM Scraping)
-   - Time/complexity estimates
-
-**See**: `workflows/reconnaissance.md` for complete reconnaissance guide with proxy-mcp examples
-
-**Why this matters**: Traffic interception automatically discovers hidden APIs (eliminating need for HTML scraping), identifies blockers before coding, and provides intelligence for optimal strategy selection. **Never skip this step.**
-
-### Phase 2: AUTOMATIC DISCOVERY (Validate Reconnaissance)
-
-After Phase 1 reconnaissance, **validate findings with automated checks**:
-
-#### 1. Check for Sitemaps
-
+**Step 0a: Fetch raw HTML and headers**
 ```bash
-# Automatically check these locations
-curl -s https://[site]/robots.txt | grep -i Sitemap
-curl -I https://[site]/sitemap.xml
-curl -I https://[site]/sitemap_index.xml
+curl -s -D- -L "https://target.com/page" -o response.html
 ```
 
-**Log findings clearly**:
-- "Found sitemap at /sitemap.xml with ~1,234 URLs"
-- "Found sitemap index with 5 sub-sitemaps"
-- "No sitemap detected at common locations"
+**Step 0b: Check response headers**
+- Match headers against `strategies/framework-signatures.md` → Response Header Signatures table
+- Note `Server`, `X-Powered-By`, `X-Shopify-Stage`, `Set-Cookie` (protection markers)
+- Check HTTP status code (200 = accessible, 403 = protected, 3xx = redirects)
 
-**Why this matters**: Sitemaps provide instant URL discovery (60x faster than crawling)
+**Step 0c: Check Known Major Sites table**
+- Match domain against `strategies/framework-signatures.md` → Known Major Sites
+- If matched: use the specified data strategy, skip generic pattern scanning
 
-#### 2. Validate Discovered APIs
+**Step 0d: Detect framework from HTML**
+- Search raw HTML for signatures in `strategies/framework-signatures.md` → HTML Signatures table
+- Look for `__NEXT_DATA__`, `__NUXT__`, `ld+json`, `/wp-content/`, `data-reactroot`
 
-APIs already discovered automatically via proxy traffic capture in Phase 1. Validate them:
+**Step 0e: Search for target data points**
+- For each data point the user wants: search raw HTML for that content
+- Track which data points are found vs missing
+- Check for sitemaps: `curl -s https://[site]/robots.txt | grep -i Sitemap`
 
-**If APIs were found**, confirm:
-1. Direct access works (test outside browser context)
-2. Pagination parameters function correctly
-3. Rate limits are acceptable
-4. No authentication barriers for target data
+**Step 0f: Note protection signals**
+- 403/503 status, Cloudflare challenge HTML, CAPTCHA elements, `cf-ray` header
+- Record for Phase 4 decision
 
-**If no APIs were found**, note:
-- Site likely requires DOM scraping
-- Check if content is static (→ Cheerio) or dynamic (→ DevTools bridge)
+**See**: `strategies/cheerio-vs-browser-test.md` for the Cheerio viability assessment
 
-**Log findings**:
-- "Confirmed API: GET /api/products/{id} (returns JSON, no auth)"
-- "Found GraphQL endpoint: /graphql (auth required — use session tokens)"
-- "No APIs detected — DOM scraping required"
+> **QUALITY GATE A**: All target data points found in raw HTML + no protection signals?
+> → YES: Skip to Phase 3 (Validate Findings). No browser needed.
+> → NO: Continue to Phase 1.
 
-#### 3. Analyze Site Structure
+### Phase 1: BROWSER RECONNAISSANCE (only if Phase 0 needs it)
 
-**Automatically assess**:
-- JavaScript-heavy? (Look for React, Vue, Angular indicators in traffic)
-- Authentication required? (Login walls, auth tokens in captured requests)
-- Page count estimate (from sitemap or API pagination metadata)
-- Rate limiting indicators (robots.txt directives, 429 responses in traffic)
+Launch browser only for data points missing from raw HTML or when JavaScript rendering is required.
 
-### Phase 3: STRATEGY RECOMMENDATION
+**Step 1a: Initialize browser session**
+- `proxy_start()` → Start traffic interception proxy
+- `interceptor_chrome_launch(url, stealthMode: true)` → Launch Chrome with anti-detection
+- `interceptor_chrome_devtools_attach(target_id)` → Attach DevTools bridge
+- `interceptor_chrome_devtools_screenshot()` → Capture visual state
 
-Based on Phases 1-2 findings, present 2-3 options with clear reasoning:
+**Step 1b: Capture traffic and rendered DOM**
+- `proxy_list_traffic()` → Review all traffic from page load
+- `proxy_search_traffic(query: "application/json")` → Find JSON responses
+- `interceptor_chrome_devtools_list_network(resource_types: ["xhr", "fetch"])` → XHR/fetch calls
+- `interceptor_chrome_devtools_snapshot()` → Accessibility tree (rendered DOM)
 
-#### Example Output Template:
+**Step 1c: Search rendered DOM for missing data points**
+- For each data point NOT found in Phase 0: search rendered DOM
+- Use framework-specific search strategy from `strategies/framework-signatures.md` → Framework → Search Strategy table
+- Only search patterns relevant to the detected framework
 
+**Step 1d: Inspect discovered endpoints**
+- `proxy_get_exchange(exchange_id)` → Full request/response for promising endpoints
+- Document: method, headers, auth, response structure, pagination
+
+> **QUALITY GATE B**: All target data points now covered (raw HTML + rendered DOM + traffic)?
+> → YES: Skip to Phase 3 (Validate Findings). No deep scan needed.
+> → NO: Continue to Phase 2 for missing data points only.
+
+### Phase 2: DEEP SCAN (only for missing data points)
+
+Targeted investigation for data points not yet found. Only search for what's missing.
+
+**Step 2a: Test interactions for missing data**
+- `proxy_clear_traffic()` before each action → Isolate API calls
+- `humanizer_click(target_id, selector)` → Trigger dynamic content loads
+- `humanizer_scroll(target_id, direction, amount)` → Trigger lazy loading / infinite scroll
+- `humanizer_idle(target_id, duration_ms)` → Wait for delayed content
+- After each action: `proxy_list_traffic()` → Check for new API calls
+
+**Step 2b: Sniff APIs (framework-aware)**
+- Search only patterns relevant to detected framework:
+  - Next.js → `proxy_list_traffic(url_filter: "/_next/data/")`
+  - WordPress → `proxy_list_traffic(url_filter: "/wp-json/")`
+  - GraphQL → `proxy_search_traffic(query: "graphql")`
+  - Generic → `proxy_list_traffic(url_filter: "/api/")` + `proxy_search_traffic(query: "application/json")`
+- Skip patterns that don't apply to the detected framework
+
+**Step 2c: Test pagination and filtering**
+- Only if pagination data is a missing data point or needed for coverage assessment
+- `proxy_clear_traffic()` → click next page → `proxy_list_traffic(url_filter: "page=")`
+- Document pagination type (URL-based, API offset, cursor, infinite scroll)
+
+> **QUALITY GATE C**: Enough data points covered for a useful report?
+> → YES: Go to Phase 3.
+> → NO: Document gaps, go to Phase 3 anyway (report will note missing data in self-critique).
+
+### Phase 3: VALIDATE FINDINGS
+
+Every claimed extraction method must be verified. A data point is not "found" until the extraction path is specified and tested.
+
+**See**: `strategies/cheerio-vs-browser-test.md` for validation methodology
+
+**Step 3a: Validate CSS selectors**
+- For each Cheerio/selector-based method: confirm the selector matches actual HTML
+- Test against raw HTML (curl output) or rendered DOM (snapshot)
+- Confirm selector extracts the correct value, not a different element
+
+**Step 3b: Validate JSON paths**
+- For each JSON extraction (e.g., `__NEXT_DATA__`, API response): confirm the path resolves
+- Parse the JSON, follow the path, verify it returns the expected data type and value
+
+**Step 3c: Validate API endpoints**
+- For each discovered API: replay the request (curl or `proxy_get_exchange`)
+- Confirm: response status 200, expected data structure, correct values
+- Test pagination if claimed (at least page 1 and page 2)
+
+**Step 3d: Downgrade or re-investigate failures**
+- If a selector doesn't match: try alternative selectors, or downgrade to PARTIAL confidence
+- If an API returns 403: note protection requirement, flag for Phase 4
+- If a JSON path is wrong: re-examine the JSON structure, correct the path
+
+### Phase 4: PROTECTION TESTING (conditional)
+
+**See**: `strategies/proxy-escalation.md` for complete skip/run decision logic
+
+**Skip Phase 4 when ALL true**:
+- No protection signals detected in Phases 0-2
+- All data points have validated extraction methods
+- User didn't request "full recon"
+
+**Run Phase 4 when ANY true**:
+- 403/challenge page observed during any phase
+- Known high-protection domain
+- High-volume or production intent
+- User explicitly requested it
+
+**If running**:
+
+**Step 4a: Test raw HTTP access**
+```bash
+curl -s -o /dev/null -w "%{http_code}" "https://target.com/page"
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Analysis of example.com
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- 200 → Cheerio viable, no browser needed for accessible endpoints
+- 403/503 → Escalate to stealth browser
 
-Phase 1 Intelligence (Traffic Interception):
-✓ API discovered via traffic capture: GET /api/products?page=N&limit=100
-✓ Framework: Next.js (SSR + CSR hybrid)
-✓ Protection: Cloudflare detected, rate limit ~60/min
-✓ Stealth mode handled browser detection
-✗ No authentication required
+**Step 4b: Test with stealth browser** (if needed)
+- Already running from Phase 1 — check if pages loaded without challenges
+- `interceptor_chrome_devtools_list_cookies(domain_filter: "cloudflare")` → Protection cookies
+- `interceptor_chrome_devtools_list_storage_keys(storage_type: "local")` → Fingerprint markers
+- `proxy_get_tls_fingerprints()` → TLS fingerprint analysis
 
-Phase 2 Validation:
-✓ Sitemap found: 1,234 product URLs (validates API total)
-✓ Static HTML fallback available if needed
+**Step 4c: Test with upstream proxy** (if needed)
+- `proxy_set_upstream("http://user:pass@proxy-provider:port")`
+- Re-test blocked endpoints through proxy
+- Document minimum access level for each data point
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Recommended Approaches:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**Step 4d: Document protection profile**
+- What protections exist, what worked to bypass them, what production scrapers will need
 
-Option 1: Hybrid (Sitemap + API) [RECOMMENDED]
-   ✓ Use sitemap to get all 1,234 product URLs instantly
-   ✓ Extract product IDs from URLs
-   ✓ Fetch data via API (fast, reliable JSON)
+### Phase 5: REPORT + SELF-CRITIQUE
 
-   Complexity: Low-Medium
-   Data quality: Excellent
-   Speed: Very Fast
+Generate the intelligence report, then critically review it for gaps.
 
-Option 2: Sitemap + DOM Scraping (DevTools Bridge)
-   ✓ Use sitemap for URLs
-   ✓ Scrape HTML via accessibility tree snapshots
+**See**: `reference/report-schema.md` for complete report format
 
-   Complexity: Medium
-   Data quality: Good
-   Speed: Fast
+**Step 5a: Generate report**
+- Follow `reference/report-schema.md` schema (Sections 1-6)
+- Include `Validated?` status for every strategy (YES / PARTIAL / NO)
+- Include all discovered endpoints with full specs
 
-Option 3: Pure API (if sitemap fails)
-   ✓ Discover product IDs through API exploration
-   ✓ Fetch all data via API
+**Step 5b: Self-critique**
+- Write Section 7 (Self-Critique) per `reference/report-schema.md`:
+  - **Gaps**: Data points not found — why, and what would find them
+  - **Skipped steps**: Which phases skipped, with quality gate reasoning
+  - **Unvalidated claims**: Anything marked PARTIAL or NO
+  - **Assumptions**: Things not verified (e.g., "consistent layout across categories")
+  - **Staleness risk**: Geo-dependent prices, A/B layouts, session-specific content
+  - **Recommendations**: Targeted next steps (not "re-run everything")
 
-   Complexity: Medium
-   Data quality: Excellent
-   Speed: Fast
+**Step 5c: Fix gaps with targeted re-investigation**
+- If self-critique reveals fixable gaps: go back to the specific phase/step, not a full re-run
+- Example: "Price selector untested" → run one curl + parse, don't re-launch browser
+- Update report with results
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-My Recommendation: Option 1 (Hybrid)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**Step 5d: Record session** (if browser was used)
+- `proxy_session_start(name)` → `proxy_session_stop(session_id)` → `proxy_export_har(session_id, path)`
+- HAR file captures all traffic for replay. See `strategies/session-workflows.md`
 
-Reasoning:
-• Sitemap gives us complete URL list (instant discovery)
-• API provides clean, structured data (no HTML parsing)
-• Combines speed of sitemap with reliability of API
-• Best of both worlds
+---
 
-Proceed with Option 1? [Y/n]
-```
+### IMPLEMENTATION (after reconnaissance)
 
-**Key principles**:
-- Always recommend the SIMPLEST approach that works
-- Traffic Interception > Sitemap > API > DOM Scraping (in terms of priority)
-- Show complexity and data quality
-- Explain reasoning clearly
-
-### Phase 4: ITERATIVE IMPLEMENTATION
-
-Implement scraper incrementally, starting simple and adding complexity only as needed.
+After reconnaissance report is accepted, implement scraper iteratively.
 
 **Core Pattern**:
 1. Implement recommended approach (minimal code)
@@ -204,15 +237,11 @@ Implement scraper incrementally, starting simple and adding complexity only as n
 
 **See**: `workflows/implementation.md` for complete implementation patterns and code examples
 
-### Phase 5: PRODUCTIONIZATION (On Request)
+### PRODUCTIONIZATION (on request)
 
 Convert scraper to production-ready Apify Actor.
 
-**Activation triggers**:
-- "Make this an Apify Actor"
-- "Productionize this scraper"
-- "Deploy to Apify"
-- "Create an actor from this"
+**Activation triggers**: "Make this an Apify Actor", "Productionize this", "Deploy to Apify"
 
 **Core Pattern**:
 1. Confirm TypeScript preference (STRONGLY RECOMMENDED)
@@ -222,14 +251,18 @@ Convert scraper to production-ready Apify Actor.
 
 **Note**: During development, proxy-mcp provides reconnaissance and traffic analysis. For production Actors, use Crawlee crawlers (CheerioCrawler/PlaywrightCrawler) on Apify infrastructure.
 
-**See**: `workflows/productionization.md` for complete productionization workflow and `apify/` directory for all Actor development guides
+**See**: `workflows/productionization.md` for complete workflow and `apify/` for Actor development guides
 
 ## Quick Reference
 
 | Task | Pattern/Command | Documentation |
 |------|----------------|---------------|
-| **Reconnaissance** | **Proxy-MCP (Traffic Interception + Stealth Browser)** | **`workflows/reconnaissance.md`** |
+| **Reconnaissance** | **Adaptive Phases 0-5** | **`workflows/reconnaissance.md`** |
+| Framework detection | Header + HTML signature matching | `strategies/framework-signatures.md` |
+| Cheerio vs Browser | Three-way test + early exit | `strategies/cheerio-vs-browser-test.md` |
 | Traffic analysis | `proxy_list_traffic()` + `proxy_get_exchange()` | `strategies/traffic-interception.md` |
+| Protection testing | Conditional escalation | `strategies/proxy-escalation.md` |
+| Report format | Sections 1-7 with self-critique | `reference/report-schema.md` |
 | Find sitemaps | `RobotsFile.find(url)` | `strategies/sitemap-discovery.md` |
 | Filter sitemap URLs | `RequestList + regex` | `reference/regex-patterns.md` |
 | Discover APIs | Traffic capture (automatic) | `strategies/api-discovery.md` |
@@ -329,7 +362,10 @@ This skill uses **progressive disclosure** - detailed information is organized i
 ### Strategies (Deep Dives)
 **For**: Detailed guides on specific scraping approaches
 
-- `strategies/traffic-interception.md` - **Traffic interception via MITM proxy (primary strategy)**
+- `strategies/framework-signatures.md` - **Framework detection lookup tables (Phase 0/1)**
+- `strategies/cheerio-vs-browser-test.md` - **Cheerio vs Browser decision test with early exit**
+- `strategies/proxy-escalation.md` - **Protection testing skip/run conditions (Phase 4)**
+- `strategies/traffic-interception.md` - Traffic interception via MITM proxy
 - `strategies/sitemap-discovery.md` - Complete sitemap guide (4 patterns)
 - `strategies/api-discovery.md` - Finding and using APIs
 - `strategies/dom-scraping.md` - DOM scraping via DevTools bridge
@@ -356,7 +392,8 @@ This skill uses **progressive disclosure** - detailed information is organized i
 ### Reference (Quick Lookup)
 **For**: Quick patterns and troubleshooting
 
-- `reference/proxy-tool-reference.md` - **Proxy-MCP tool reference (all 80+ tools)**
+- `reference/report-schema.md` - **Intelligence report format (Sections 1-7 + self-critique)**
+- `reference/proxy-tool-reference.md` - Proxy-MCP tool reference (all 80+ tools)
 - `reference/regex-patterns.md` - Common URL regex patterns
 - `reference/fingerprint-patterns.md` - Stealth mode + TLS fingerprint presets
 - `reference/anti-patterns.md` - What NOT to do
@@ -377,23 +414,23 @@ This skill uses **progressive disclosure** - detailed information is organized i
 
 ## Core Principles
 
-### 1. Traffic Interception First
-Start with the approach that gives the most intelligence:
-- Traffic Interception > Sitemap > API > DOM Scraping
-- MITM proxy reveals hidden APIs automatically
-- Stealth mode handles anti-detection out of the box
+### 1. Assess Before Committing Resources
+Start cheap (curl), escalate only when needed:
+- Phase 0 (curl) before Phase 1 (browser) before Phase 2 (deep scan)
+- Quality gates skip phases when data is sufficient
+- Never launch a browser if curl gives you everything
 
-### 2. Progressive Enhancement
-Start with the simplest approach that works:
-- Static > Dynamic
-- HTTP > Browser
-- Cheerio > Playwright
+### 2. Detect First, Then Search Relevant Patterns
+Use framework detection to focus searches:
+- Match against `strategies/framework-signatures.md` before scanning
+- Skip patterns that don't apply (no `__NEXT_DATA__` on Amazon)
+- Known major sites get direct strategy lookup
 
-### 3. Proactive Discovery
-Always investigate before implementing:
-- Capture traffic to discover APIs automatically
-- Check for sitemaps
-- Analyze site structure via traffic patterns
+### 3. Validate, Don't Assume
+Every claimed extraction method must be tested:
+- "Found text in HTML" is not enough — need a working selector/path
+- Phase 3 validates every finding before the report
+- Unvalidated claims are marked PARTIAL or NO in the report
 
 ### 4. Iterative Implementation
 Build incrementally:

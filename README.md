@@ -5,9 +5,10 @@ Intelligent web scraping with automatic strategy selection and TypeScript-first 
 ## Overview
 
 This skill provides:
-- **Interactive reconnaissance** - Hands-on site exploration using Proxy-MCP (traffic interception + stealth browser + humanizer)
-- **Proactive strategy discovery** - Automatically discovers APIs via traffic capture, checks for sitemaps
-- **Intelligent recommendations** - Suggests optimal approach (traffic interception/sitemap/API/DOM scraping/hybrid)
+- **Adaptive reconnaissance** - Phases 0-5 with quality gates that skip unnecessary work (curl first, browser only if needed)
+- **Framework-aware detection** - Identifies site framework before searching, skips irrelevant patterns
+- **Validated findings** - Every claimed selector/path/API is tested before reporting
+- **Self-critiquing reports** - Intelligence reports include gap analysis and staleness warnings
 - **Iterative implementation** - Starts simple, adds complexity only if needed
 - **Production-ready guidance** - TypeScript-first Apify Actor development
 
@@ -23,15 +24,15 @@ Add this skill to Claude Code by placing this directory in the skills folder.
 User: "Scrape https://example.com"
 
 Claude will automatically:
-1. Start MITM proxy and launch stealth browser (Proxy-MCP)
-2. Capture and analyze all network traffic - discover API endpoints
-3. Test interactions with humanizer - pagination, filters, dynamic content
-4. Assess protections - Cloudflare, rate limits, fingerprinting
-5. Check for sitemaps (/sitemap.xml, robots.txt)
-6. Generate intelligence report with optimal strategy
-7. Implement recommended approach iteratively
-8. Test with small batch (5-10 items)
-9. Scale to full dataset
+1. Phase 0: curl raw HTML — detect framework, search for data points, check sitemaps
+2. QUALITY GATE: All data in HTML? → Skip browser, go to validation
+3. Phase 1: Launch stealth browser (only if needed) — capture traffic, rendered DOM
+4. Phase 2: Deep scan (only for missing data) — test interactions, sniff APIs
+5. Phase 3: Validate every finding — test selectors, replay APIs, confirm paths
+6. Phase 4: Protection testing (only if signals detected or user requested)
+7. Phase 5: Generate intelligence report with self-critique
+8. Implement recommended approach iteratively
+9. Test with small batch, then scale
 ```
 
 ### Scenario 2: Create Apify Actor
@@ -58,7 +59,10 @@ web-scraping/
 │   ├── implementation.md       # Phase 4 iterative implementation
 │   └── productionization.md    # Phase 5 Actor creation
 ├── strategies/                 # Deep-dive guides
-│   ├── traffic-interception.md # MITM proxy traffic capture (primary)
+│   ├── framework-signatures.md # Framework detection lookup tables
+│   ├── cheerio-vs-browser-test.md # Cheerio vs Browser decision + early exit
+│   ├── proxy-escalation.md    # Protection testing skip/run conditions
+│   ├── traffic-interception.md # MITM proxy traffic capture
 │   ├── sitemap-discovery.md   # 60x faster URL discovery
 │   ├── api-discovery.md       # 10-100x faster than scraping
 │   ├── dom-scraping.md        # DevTools bridge + humanizer
@@ -73,6 +77,7 @@ web-scraping/
 │   ├── hybrid-sitemap-api.js
 │   └── iterative-fallback.js
 ├── reference/                  # Quick lookup
+│   ├── report-schema.md       # Intelligence report format (Sections 1-7)
 │   ├── proxy-tool-reference.md # Proxy-MCP tools (80+)
 │   ├── regex-patterns.md
 │   ├── fingerprint-patterns.md
@@ -167,31 +172,30 @@ This skill follows Anthropic's official best practices for skill development:
 
 ## Key Features
 
-### 1. Interactive Reconnaissance (Phase 1)
+### 1. Adaptive Reconnaissance (Phases 0-5)
 
-Before any implementation:
-- **Proxy-MCP Traffic Interception**: MITM proxy captures all HTTP/HTTPS traffic automatically
-- **Stealth Browser**: Chrome with anti-detection patches (webdriver, chrome.runtime, etc.)
-- **Humanizer**: Anti-detection interactions (Bezier curves, WPM typing, micro-jitter idle)
-- **Protection Analysis**: Detect Cloudflare, CAPTCHA, rate limiting, fingerprinting
-- **Intelligence Report**: Generate structured findings with optimal strategy recommendation
+Quality-gated workflow that skips unnecessary phases:
+- **Phase 0**: curl-based assessment — detect framework, search for data, check protections
+- **Phase 1**: Browser only if needed — stealth Chrome, traffic capture, rendered DOM
+- **Phase 2**: Deep scan only for missing data — targeted interactions, framework-aware API sniffing
+- **Phase 3**: Validate every finding — test selectors, replay APIs, confirm JSON paths
+- **Phase 4**: Protection testing only if signals warrant — conditional escalation
+- **Phase 5**: Self-critiquing report — gaps, assumptions, staleness warnings
 
-**Why this matters**: Traffic interception automatically discovers hidden APIs (10-100x faster than HTML scraping), identifies blockers before coding, provides intelligence for informed strategy selection.
+### 2. Framework-Aware Detection
 
-### 2. Proactive Discovery (Phase 2)
+Uses `strategies/framework-signatures.md` lookup tables:
+- Response headers → framework identification
+- HTML signatures → data location mapping
+- Known major sites → direct strategy (e.g., Amazon: custom SSR, no JSON-LD)
+- Detect first, then search only relevant patterns
 
-Automatically validates reconnaissance findings:
-- Sitemaps (`/sitemap.xml`, `robots.txt`)
-- API endpoints (discovered automatically via traffic capture)
-- Site structure (JavaScript-heavy? Authentication?)
+### 3. Validated Intelligence Reports
 
-### 3. Strategic Recommendations (Phase 3)
-
-Presents 2-3 options with:
-- Time estimates
-- Complexity rating
-- Pros/cons
-- Clear reasoning
+Reports follow `reference/report-schema.md` with:
+- `Validated?` column for every extraction strategy (YES / PARTIAL / NO)
+- Self-Critique section: gaps, skipped steps, assumptions, staleness risk
+- Targeted re-investigation for fixable gaps
 
 ### 4. Iterative Implementation (Phase 4)
 
@@ -214,16 +218,26 @@ For production actors:
 
 ```
 1. User: "Scrape example.com"
-2. Claude starts MITM proxy, launches stealth Chrome (Phase 1 reconnaissance)
-3. Claude analyzes captured traffic, finds API endpoint GET /api/products
-4. Claude tests pagination with humanizer, detects Cloudflare protection
-5. Claude checks sitemap (validates Phase 1 findings - 1,234 URLs)
-6. Claude generates intelligence report
-7. Claude recommends: Hybrid (Sitemap + API + Upstream Proxies)
-8. Implements with discovered API endpoints
-9. Tests with 10 items
-10. Scales to full dataset
-11. Result: 1000 products in 5 minutes, no blocks
+2. Phase 0: curl raw HTML → detect Next.js (__NEXT_DATA__), find product data in JSON
+3. GATE A: All data in __NEXT_DATA__? → YES → Skip browser
+4. Phase 3: Validate JSON paths resolve to expected values
+5. Phase 5: Generate report with self-critique
+6. Result: No browser needed, Cheerio + JSON parsing sufficient
+```
+
+### Workflow 1b: Site Needing Browser
+
+```
+1. User: "Scrape protected-shop.com"
+2. Phase 0: curl returns 403 → protection detected, no data in HTML
+3. GATE A: NO → Continue to Phase 1
+4. Phase 1: Stealth browser loads page, traffic reveals API endpoint
+5. GATE B: All data covered via API → Skip Phase 2
+6. Phase 3: Replay API request, validate response structure
+7. Phase 4: Protection testing (403 was detected) → stealth browser + proxy needed
+8. Phase 5: Report + self-critique
+9. Implements with discovered API + upstream proxies
+10. Tests with 10 items, scales to full dataset
 ```
 
 ### Workflow 2: Make it an Actor
@@ -252,17 +266,13 @@ For production actors:
 
 ## Best Practices Summary
 
-### Reconnaissance Phase (Phase 1)
-- Always start with Proxy-MCP traffic interception
-- Discover APIs automatically via traffic capture
-- Test interactions with humanizer
-- Assess protections early (Cloudflare, CAPTCHA, rate limits)
-- Generate intelligence report with findings
-
-### Discovery Phase (Phase 2)
-- Validate reconnaissance with automated sitemap checks
-- Confirm API endpoints discovered via traffic capture
-- Analyze site structure based on observations
+### Reconnaissance (Phases 0-5)
+- Start with curl (Phase 0) before launching browser
+- Detect framework first, then search relevant patterns only
+- Quality gates skip phases when data is sufficient
+- Validate every selector/path/API before reporting
+- Self-critique: check for gaps, assumptions, staleness
+- Protection testing only when signals warrant it
 
 ### Implementation Phase (Phase 4)
 - Start simple (traffic interception → sitemap → API → DOM scraping)
