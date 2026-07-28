@@ -34,12 +34,13 @@ apify push
 
 ### Core Guides
 1. **typescript-first.md** - Why TypeScript for Actors (STRONGLY RECOMMENDED)
-2. **cli-workflow.md** - apify create workflow (CRITICAL - always use CLI)
-3. **initialization.md** - Setup and authentication patterns
-4. **input-schemas.md** - Input validation patterns (6 complete examples)
-5. **configuration.md** - actor.json configuration patterns
-6. **deployment.md** - Testing and deployment workflows
-7. **agents-md-guide.md** - How to use AGENTS.md in templates (reference guide)
+2. **existing-actors.md** - Reuse gate and Xquik X Actor routes
+3. **cli-workflow.md** - apify create workflow (CRITICAL - always use CLI)
+4. **initialization.md** - Setup and authentication patterns
+5. **input-schemas.md** - Input validation patterns (6 complete examples)
+6. **configuration.md** - actor.json configuration patterns
+7. **deployment.md** - Testing and deployment workflows
+8. **agents-md-guide.md** - How to use AGENTS.md in templates (reference guide)
 
 ### Templates
 - **templates/typescript-actor/** - Complete TypeScript actor template
@@ -84,13 +85,14 @@ See `cli-workflow.md` for details.
 
 ## Recommended Reading Order
 
-1. **cli-workflow.md** - Start here (apify create)
-2. **typescript-first.md** - Why TypeScript
-3. **agents-md-guide.md** - Understanding AGENTS.md in templates
-4. **initialization.md** - Complete setup
-5. **input-schemas.md** - Define inputs
-6. **configuration.md** - Configure actor
-7. **deployment.md** - Deploy to platform
+1. **existing-actors.md** - Check whether an Actor already solves the task
+2. **cli-workflow.md** - Start here when a new Actor is required
+3. **typescript-first.md** - Why TypeScript
+4. **agents-md-guide.md** - Understanding AGENTS.md in templates
+5. **initialization.md** - Complete setup
+6. **input-schemas.md** - Define inputs
+7. **configuration.md** - Configure actor
+8. **deployment.md** - Deploy to platform
 
 ## Scope and External Resources
 

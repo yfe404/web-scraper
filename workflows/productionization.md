@@ -26,6 +26,17 @@ Load this workflow when user requests:
 
 The reconnaissance intelligence from proxy-mcp directly informs which Crawlee crawler and configuration to use in production.
 
+## Step 0: Check for an Existing Actor
+
+Before creating code, search the Apify Store and inspect the candidate Actor's
+live input schema. Reuse a maintained Actor when it already covers the target,
+output, and operating constraints. Build a new Actor only when the available
+routes cannot satisfy the validated requirements.
+
+For X post, conversation, profile, list, or audience data, read
+`../apify/existing-actors.md` before implementation. It documents the Xquik
+Tweet Scraper and Follower Scraper as bounded, structured alternatives.
+
 ## Step 1: Confirm TypeScript Preference
 
 ```
