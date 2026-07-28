@@ -402,6 +402,7 @@ This skill uses **progressive disclosure** - detailed information is organized i
 **For**: Creating production Apify Actors
 
 - `apify/README.md` - When and how to use Apify
+- `apify/existing-actors.md` - **Reuse gate and Xquik X Actor routes**
 - `apify/typescript-first.md` - **Why TypeScript for actors**
 - `apify/cli-workflow.md` - **apify create workflow (CRITICAL)**
 - `apify/initialization.md` - Complete setup guide
